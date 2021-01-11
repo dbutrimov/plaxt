@@ -40,6 +40,50 @@
                 <h5><span class="text-secondary">Tip #2:</span> Link your Plex account.</h5>
 
             </div>
+
+            <div class="container mb-5">
+                <h5><span class="text-danger">Danger Zone!</span></h5>
+
+                <div class="container">
+                    <p>Once you delete an account, there is no going back. Please be certain.</p>
+                    <button type="button" class="btn btn-danger"
+                            data-bs-toggle="modal" data-bs-target="#deleteAccountModal">
+                        Delete account
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="deleteAccountModal" tabindex="-1"
+             aria-labelledby="deleteAccountModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="deleteAccountModalLabel">Are you absolutely sure?</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+
+                    <div class="modal-body bg-warning">
+                        Unexpected bad things will happen if you don’t read this!
+                    </div>
+
+                    <div class="modal-body">
+                        <p>This action <b>cannot</b> be undone. This will permanently delete the <b>{{ account.username }}</b> account.</p>
+                        <p>Please type <b>{{ account.username }}</b> to confirm.</p>
+                        <input id="confirmAccountDeleteInput" type="text" class="form-control" />
+                    </div>
+
+                    <div class="modal-footer">
+                        <form action="{% url 'delete' %}" method="post">
+                            {% csrf_token %}
+                            <button id="confirmAccountDeleteButton" type="submit" class="btn btn-danger" disabled>
+                                Delete this account
+                            </button>
+                        </form>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
         </div>
     {% endif %}
 {% endblock %}
@@ -49,6 +93,20 @@
 
     <script>
         $(document).ready(function () {
+            let deleteAccountModal = $('#deleteAccountModal');
+            if (deleteAccountModal !== undefined) {
+                deleteAccountModal.on('show.bs.modal', function (event) {
+                    $('#confirmAccountDeleteButton').attr('disabled', true);
+                    $('#confirmAccountDeleteInput').val('');
+                });
+
+                $('#confirmAccountDeleteInput').bind('input', function (event) {
+                    $('#confirmAccountDeleteButton')
+                        .attr('disabled', $(this).val() !== "{{ account.username }}");
+                });
+            }
+
+
             let button = $('#copy-webhook-button');
 
             // Initialize the tooltip.

@@ -294,6 +294,22 @@ def logout(request: HttpRequest):
     return redirect('index')
 
 
+def delete(request: HttpRequest):
+    account_id = request.session.get(ACCOUNT_ID_KEY)
+    if not account_id:
+        return redirect('login')
+
+    try:
+        del request.session[ACCOUNT_ID_KEY]
+    except KeyError:
+        pass
+
+    account = TraktAccount.objects.get(id=account_id)
+    account.delete()
+
+    return redirect('index')
+
+
 def index(request: HttpRequest):
     if ACCOUNT_ID_KEY not in request.session:
         return redirect('login')
