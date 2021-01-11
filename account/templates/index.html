@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block page_content %}
+    {% if account %}
+        <div class="m-5">
+            <h3 class="mb-5">What is next?</h3>
+
+            <!-- Scrobbler -->
+            <div class="container mb-5">
+                <h5><span class="text-secondary">Tip #1:</span> How to enable the Plex Scrobbler.</h5>
+                <ol>
+                    <li><a href="https://app.plex.tv/desktop#!/settings/webhooks" target="_blank" rel="noopener noreferrer">Sign in</a> to your Plex Media Server and go to the <a href="https://app.plex.tv/desktop#!/settings/webhooks" target="_blank" rel="noopener noreferrer">Webhooks settings</a>.
+                    </li>
+                    <li>Copy the URL
+                        <div class="input-group input-group-sm mb-1 mt-1">
+                            <input id="copy-webhook-input" type="text" class="form-control" value="{{ webhook_uri }}"
+                                   aria-describedby="button-addon2" readonly>
+                            <button id="copy-webhook-button" class="btn btn-outline-secondary" type="button"
+                                    data-toggle="tooltip" data-placement="button"
+                                    title="Copy to Clipboard">
+                                Copy
+                            </button>
+                        </div>
+                    </li>
+                    <li>Back in <i>Plex Media Server</i>, click <b>Add Webhook</b>, paste in the URL, and click <b>Save Changes</b>.
+                    </li>
+                    <li>Still in your <i>Plex Media Server</i> settings, we need to make sure a few options are enabled.
+                        <ol>
+                            <li>Go to <b>General</b>, and make sure <b>Push Notifications</b> are enabled.</li>
+                            <li>Go to <b>Network</b>, and make sure <b>Webhooks</b> are enabled.</li>
+                        </ol>
+                    </li>
+                    <li>Enjoy!</li>
+                </ol>
+                <a href="https://support.plex.tv/articles/115002267687-webhooks/" target="_blank" rel="noopener noreferrer">What is Webhooks?</a>
+            </div>
+
+            <!-- Sync -->
+            <div class="container mb-5">
+                <h5><span class="text-secondary">Tip #2:</span> Link your Plex account.</h5>
+
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}
+
+{% block javascript %}
+    {{ block.super }}
+
+    <script>
+        $(document).ready(function () {
+            let button = $('#copy-webhook-button');
+
+            // Initialize the tooltip.
+            button.tooltip();
+
+            // When the copy button is clicked, select the value of the text box, attempt
+            // to execute the copy command, and trigger event to update tooltip message
+            // to indicate whether the text was successfully copied.
+            button.bind('click', function () {
+                let input = document.querySelector('#copy-webhook-input');
+                input.select();
+                input.setSelectionRange(0, input.value.length + 1);
+
+                let button = $('#copy-webhook-button');
+                try {
+                    let success = document.execCommand('copy');
+                    if (success) {
+                        button.trigger('copied', ['Copied!']);
+                    } else {
+                        button.trigger('copied', ['Copy with Ctrl-C']);
+                    }
+                } catch (err) {
+                    button.trigger('copied', ['Copy with Ctrl-C']);
+                }
+            });
+
+            // Handler for updating the tooltip message.
+            button.bind('copied', function (event, message) {
+                $(this).attr('title', message)
+                    .tooltip('_fixTitle')
+                    .tooltip('show')
+                    .attr('title', "Copy to Clipboard")
+                    .tooltip('_fixTitle');
+            });
+        });
+    </script>
+{% endblock %}
