@@ -24,7 +24,11 @@ def authenticate_trakt(account_id: str):
     account = TraktAccount.objects.get(id=account_id)
     auth = account.auth
 
-    Trakt.configuration.defaults.oauth.from_response(auth.to_response(), refresh=True, username=account.username)
+    Trakt.configuration.defaults.oauth.from_response(
+        response=auth.to_response(),
+        refresh=True,
+        username=account.username,
+    )
 
 
 def authorize_redirect_uri(request: HttpRequest):
@@ -67,7 +71,7 @@ def parse_media_id(guid: str):
     return media_key, media_id
 
 
-def handle_movie(metadata, event):
+def handle_movie(metadata, event, account_id):
     # {
     #     'librarySectionType': 'movie',
     #     'ratingKey': '10227',
@@ -99,8 +103,9 @@ def handle_movie(metadata, event):
     if not action:
         raise ParseError()
 
-    ids = dict()
+    authenticate_trakt(account_id)
 
+    ids = dict()
     guid = metadata['guid']
     media_key, media_id = parse_media_id(guid)
     if media_id:
@@ -121,7 +126,7 @@ def handle_movie(metadata, event):
     return result
 
 
-def handle_show(metadata, event):
+def handle_show(metadata, event, account_id):
     # {
     #     'librarySectionType': 'show',
     #     'ratingKey': '10358',
@@ -163,8 +168,9 @@ def handle_show(metadata, event):
     if not action:
         raise ParseError()
 
-    ids = dict()
+    authenticate_trakt(account_id)
 
+    ids = dict()
     guid = metadata['grandparentGuid']
     media_key, media_id = parse_media_id(guid)
     if media_id:
@@ -199,8 +205,6 @@ def webhook(request: RestRequest, format=None):
     if not account_id:
         return HttpResponseBadRequest()
 
-    authenticate_trakt(account_id)
-
     payload = json.loads(request.data['payload'])
 
     # plex_account = payload['Account']
@@ -208,11 +212,11 @@ def webhook(request: RestRequest, format=None):
 
     library_section_type = metadata['librarySectionType']
     if library_section_type == 'movie':
-        result = handle_movie(metadata, payload['event'])
+        result = handle_movie(metadata, payload['event'], account_id)
         return RestResponse(result)
 
     if library_section_type == 'show':
-        result = handle_show(metadata, payload['event'])
+        result = handle_show(metadata, payload['event'], account_id)
         return RestResponse(result)
 
     return RestResponse({'success': True})
@@ -231,7 +235,7 @@ def authorize(request: HttpRequest):
     if not auth_response:
         raise Exception()
 
-    Trakt.configuration.defaults.oauth.from_response(auth_response, refresh=False)
+    Trakt.configuration.defaults.oauth.from_response(auth_response)
 
     user_settings = Trakt['users/settings'].get()
     user = user_settings['user']

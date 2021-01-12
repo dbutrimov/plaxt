@@ -12,3 +12,19 @@ class AccountConfig(AppConfig):
             id=settings.TRAKT_CLIENT,
             secret=settings.TRAKT_SECRET
         )
+
+        Trakt.on('oauth.refresh', self.on_token_refresh)
+
+    def on_token_refresh(self, username, authorization):
+        # OAuth token refreshed, store authorization for future calls
+        print('Token refreshed - authorization: %r' % authorization)
+
+        if not username:
+            raise Exception('username is not defined')
+
+        from account.models import TraktAccount
+
+        account = TraktAccount.objects.get(username=username)
+        auth = account.auth
+        auth.from_response(authorization)
+        auth.save()
