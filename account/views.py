@@ -1,7 +1,7 @@
 import json
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseBadRequest, HttpRequest
@@ -26,10 +26,14 @@ def authenticate_trakt(account_id: str):
 
     # todo: refresh token here
 
+    created_at = account.updated_at.timestamp()
+    expires_in = timedelta(days=14).total_seconds()
+
     return {
         'access_token': account.access_token,
         'refresh_token': account.refresh_token,
-        'updated_at': account.updated_at,
+        'created_at': created_at,
+        'expires_in': expires_in,
     }
 
 
