@@ -34,4 +34,4 @@ class TraktAccount(models.Model):
     username = models.CharField(max_length=64, unique=True, db_index=True)
     created_at = models.DateTimeField(auto_now=True)
 
-    auth = models.OneToOneField(TraktAuth, on_delete=models.CASCADE)
+    auth = models.ForeignKey(TraktAuth, on_delete=models.CASCADE)

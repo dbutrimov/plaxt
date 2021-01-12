@@ -1,6 +1,5 @@
 import json
 import re
-import uuid
 
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseBadRequest, HttpRequest
@@ -24,7 +23,7 @@ def authenticate_trakt(account_id: str):
     account = TraktAccount.objects.get(id=account_id)
     auth = account.auth
 
-    Trakt.configuration.defaults.oauth.from_response(
+    return Trakt.configuration.defaults.oauth.from_response(
         response=auth.to_response(),
         refresh=True,
         username=account.username,
@@ -103,25 +102,24 @@ def handle_movie(metadata, event, account_id):
     if not action:
         raise ParseError()
 
-    authenticate_trakt(account_id)
+    with authenticate_trakt(account_id):
+        ids = dict()
+        guid = metadata['guid']
+        media_key, media_id = parse_media_id(guid)
+        if media_id:
+            ids[media_key] = media_id
 
-    ids = dict()
-    guid = metadata['guid']
-    media_key, media_id = parse_media_id(guid)
-    if media_id:
-        ids[media_key] = media_id
+        movie = {
+            'title': metadata['originalTitle'],
+            'year': metadata['year'],
+            'ids': ids,
+        }
 
-    movie = {
-        'title': metadata['originalTitle'],
-        'year': metadata['year'],
-        'ids': ids,
-    }
-
-    result = Trakt['scrobble'].action(
-        action=action,
-        movie=movie,
-        progress=progress,
-    )
+        result = Trakt['scrobble'].action(
+            action=action,
+            movie=movie,
+            progress=progress,
+        )
 
     return result
 
@@ -168,31 +166,30 @@ def handle_show(metadata, event, account_id):
     if not action:
         raise ParseError()
 
-    authenticate_trakt(account_id)
+    with authenticate_trakt(account_id):
+        ids = dict()
+        guid = metadata['grandparentGuid']
+        media_key, media_id = parse_media_id(guid)
+        if media_id:
+            ids[media_key] = media_id
 
-    ids = dict()
-    guid = metadata['grandparentGuid']
-    media_key, media_id = parse_media_id(guid)
-    if media_id:
-        ids[media_key] = media_id
+        show = {
+            'title': metadata['title'],
+            'year': metadata['year'],
+            'ids': ids,
+        }
 
-    show = {
-        'title': metadata['title'],
-        'year': metadata['year'],
-        'ids': ids,
-    }
+        episode = {
+            'season': metadata['parentIndex'],
+            'number': metadata['index']
+        }
 
-    episode = {
-        'season': metadata['parentIndex'],
-        'number': metadata['index']
-    }
-
-    result = Trakt['scrobble'].action(
-        action=action,
-        show=show,
-        episode=episode,
-        progress=progress,
-    )
+        result = Trakt['scrobble'].action(
+            action=action,
+            show=show,
+            episode=episode,
+            progress=progress,
+        )
 
     return result
 
@@ -235,17 +232,17 @@ def authorize(request: HttpRequest):
     if not auth_response:
         raise Exception()
 
-    Trakt.configuration.defaults.oauth.from_response(auth_response)
-
-    user_settings = Trakt['users/settings'].get()
-    user = user_settings['user']
-    username = user['username']
+    with Trakt.configuration.defaults.oauth.from_response(auth_response):
+        user_settings = Trakt['users/settings'].get()
+        user = user_settings['user']
+        user_id = user['ids']['uuid']
+        username = user['username']
 
     account = TraktAccount.objects.filter(username=username).first()
     if not account:
         account = TraktAccount(
-            id=uuid.uuid4().hex,
-            username=user['username'],
+            id=user_id,
+            username=username,
             auth=TraktAuth(),
         )
 
