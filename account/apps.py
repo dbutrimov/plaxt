@@ -1,7 +1,11 @@
+import logging
+
 from django.apps import AppConfig
 from trakt import Trakt
 
 from . import settings
+
+logger = logging.getLogger(__name__)
 
 
 class AccountConfig(AppConfig):
@@ -17,7 +21,7 @@ class AccountConfig(AppConfig):
 
     def on_token_refresh(self, username, authorization):
         # OAuth token refreshed, store authorization for future calls
-        print('Token refreshed - authorization: %r' % authorization)
+        logger.info('Token refreshed - authorization: %r' % authorization)
 
         if not username:
             raise Exception('username is not defined')

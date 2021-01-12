@@ -1,5 +1,7 @@
 import json
+import logging
 import re
+from datetime import datetime
 
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseBadRequest, HttpRequest
@@ -8,13 +10,14 @@ from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
-from rest_framework.exceptions import ParseError
 from rest_framework.request import Request as RestRequest
 from rest_framework.response import Response as RestResponse
 from trakt import Trakt
 
 from . import settings
 from .models import TraktAccount, TraktAuth
+
+logger = logging.getLogger(__name__)
 
 ACCOUNT_ID_KEY = 'account_id'
 
@@ -34,13 +37,182 @@ def authorize_redirect_uri(request: HttpRequest):
     return request.build_absolute_uri(reverse('authorize'))
 
 
-# media.pause – Media playback pauses.
-# media.play – Media starts playing. An appropriate poster is attached.
-# media.rate – Media is rated. A poster is also attached to this event.
-# media.resume – Media playback resumes.
-# media.scrobble – Media is viewed (played past the 90% mark).
-# media.stop – Media playback stops.
-def get_action(event):
+def parse_media_id(guid: str):
+    match = re.match(r'^.*\.([^.]*)://([^\\?]*).*$', guid, re.IGNORECASE | re.MULTILINE)
+    if not match:
+        return None
+
+    media_key = match.group(1)
+    if media_key.startswith('the'):
+        media_key = media_key[3:]
+
+    media_id = match.group(2)
+
+    return media_key, media_id
+
+
+def find_ids(metadata, key='guid'):
+    guid = metadata.get(key)
+    if not guid:
+        return None
+
+    media_key, media_id = parse_media_id(guid)
+    if not media_key or not media_id:
+        return None
+
+    return {
+        media_key: media_id,
+    }
+
+
+def find_movie(metadata):
+    media_type = metadata.get('type')
+    if media_type != 'movie':
+        return None
+
+    return {
+        'title': metadata['title'],
+        'year': metadata['year'],
+        'ids': find_ids(metadata),
+    }
+
+
+def find_show(metadata):
+    media_type = metadata.get('type')
+
+    if media_type == 'show':
+        return {
+            'title': metadata['title'],
+            'year': metadata['year'],
+            'ids': find_ids(metadata),
+        }
+
+    if media_type == 'season':
+        return {
+            'title': metadata['parentTitle'],
+            'ids': find_ids(metadata, key='parentGuid'),
+        }
+
+    if media_type == 'episode':
+        return {
+            'title': metadata['grandparentTitle'],
+            'ids': find_ids(metadata, key='grandparentGuid'),
+        }
+
+    return None
+
+
+def find_season(metadata):
+    media_type = metadata.get('type')
+
+    if media_type == 'season':
+        return {
+            'title': metadata['title'],
+            'season': metadata['index'],
+            'year': metadata['year'],
+            'ids': find_ids(metadata),
+        }
+
+    if media_type == 'episode':
+        return {
+            'title': metadata['parentTitle'],
+            'season': metadata['parentIndex'],
+            'ids': find_ids(metadata, key='parentGuid'),
+        }
+
+    return None
+
+
+def find_episode(metadata):
+    media_type = metadata.get('type')
+    if media_type != 'episode':
+        return None
+
+    return {
+        'season': metadata['parentIndex'],
+        'number': metadata['index'],
+        'title': metadata['title'],
+        'year': metadata['year'],
+        'ids': find_ids(metadata),
+    }
+
+
+def handle_rating(metadata, account_id):
+    media_type = metadata['type']
+
+    rating = metadata['userRating']
+    if not rating:
+        return None
+
+    rated_at = metadata['lastRatedAt']
+    if rated_at:
+        rated_at = datetime.fromtimestamp(rated_at).isoformat()
+
+    movies = []
+    if media_type == 'movie':
+        movie = find_movie(metadata)
+        movie['rating'] = rating
+        movie['rated_at'] = rated_at
+        movies.append(movie)
+
+    shows = []
+    if media_type == 'show':
+        show = find_show(metadata)
+        show['rating'] = rating
+        show['rated_at'] = rated_at
+        shows.append(show)
+
+    seasons = []
+    if media_type == 'season':
+        season = find_season(metadata)
+        season['rating'] = rating
+        season['rated_at'] = rated_at
+        seasons.append(season)
+
+    episodes = []
+    if media_type == 'episode':
+        episode = find_episode(metadata)
+        episode['rating'] = rating
+        episode['rated_at'] = rated_at
+        episodes.append(episode)
+
+    if len(movies) > 0 or len(shows) > 0 or len(seasons) > 0 or len(episodes) > 0:
+        with authenticate_trakt(account_id):
+            return Trakt['sync/ratings'].add({
+                'movies': movies,
+                'shows': shows,
+                'seasons': seasons,
+                'episodes': episodes,
+            })
+
+    return None
+
+
+def handle_scrobble(metadata, action, progress, account_id):
+    movie = find_movie(metadata)
+    if movie:
+        with authenticate_trakt(account_id):
+            return Trakt['scrobble'].action(
+                action=action,
+                movie=movie,
+                progress=progress,
+            )
+
+    episode = find_episode(metadata)
+    if episode:
+        with authenticate_trakt(account_id):
+            show = find_show(metadata)
+            return Trakt['scrobble'].action(
+                action=action,
+                show=show,
+                episode=episode,
+                progress=progress,
+            )
+
+    return None
+
+
+def find_scrobble_action(event):
     if event in ['media.play', 'media.resume']:
         return 'start', 0
 
@@ -56,167 +228,39 @@ def get_action(event):
     return None
 
 
-def parse_media_id(guid: str):
-    match = re.match(r'^.*\.([^.]*)://([^\\?]*).*$', guid, re.IGNORECASE | re.MULTILINE)
-    if not match:
-        return None
+def handle_payload(payload, account_id):
+    event = payload['event']
+    metadata = payload['Metadata']
+    media_type = metadata['type']
 
-    media_key = match.group(1)
-    if media_key.startswith('the'):
-        media_key = media_key[3:]
+    logger.info(
+        'handle_payload: event={0}; type={1}; guid={2}'.format(
+            event,
+            media_type,
+            metadata['guid'],
+        ))
 
-    media_id = match.group(2)
+    if event == 'media.rate':
+        return handle_rating(metadata, account_id)
 
-    return media_key, media_id
+    scrobble_action, scrobble_progress = find_scrobble_action(event)
+    if scrobble_action:
+        return handle_scrobble(metadata, scrobble_action, scrobble_progress, account_id)
 
-
-def handle_movie(metadata, event, account_id):
-    # {
-    #     'librarySectionType': 'movie',
-    #     'ratingKey': '10227',
-    #     'key': '/library/metadata/10227',
-    #     'guid': 'com.plexapp.agents.imdb://tt9204164?lang=ru',
-    #     'studio': 'nWave Pictures',
-    #     'type': 'movie',
-    #     'title': 'Семейка Бигфутов',
-    #     'librarySectionTitle': 'Movies',
-    #     'librarySectionID': 1,
-    #     'librarySectionKey': '/library/sections/1',
-    #     'originalTitle': 'Bigfoot Family',
-    #     'summary': 'Все семьи разные, но эта — самая разношерстная. Папа когда-то превратился в Бигфута, сын унаследовал его суперспособности и умение понимать язык животных, так ещё и в доме вместе с ними и мамой живёт целый зоопарк — огромный медведь, неутомимая белка и беспокойный енот со множеством очаровательных детёнышей. Когда же уникальному заповеднику на Аляске понадобится помощь, вся семейка Бигфутов отправится в большое путешествие и покажет всему миру, на что способна их команда…',
-    #     'rating': 5.5,
-    #     'viewCount': 3,
-    #     'lastViewedAt': 1610277754,
-    #     'year': 2020,
-    #     'tagline': 'Все семьи как семьи... Но эта - самая разношёрстная',
-    #     'thumb': '/library/metadata/10227/thumb/1609715876',
-    #     'art': '/library/metadata/10227/art/1609715876',
-    #     'duration': 5820000,
-    #     'originallyAvailableAt': '2020-07-23',
-    #     'addedAt': 1604909771,
-    #     'updatedAt': 1609715876,
-    #     'chapterSource': 'media'
-    # }
-
-    action, progress = get_action(event)
-    if not action:
-        raise ParseError()
-
-    with authenticate_trakt(account_id):
-        ids = dict()
-        guid = metadata['guid']
-        media_key, media_id = parse_media_id(guid)
-        if media_id:
-            ids[media_key] = media_id
-
-        movie = {
-            'title': metadata['originalTitle'],
-            'year': metadata['year'],
-            'ids': ids,
-        }
-
-        result = Trakt['scrobble'].action(
-            action=action,
-            movie=movie,
-            progress=progress,
-        )
-
-    return result
-
-
-def handle_show(metadata, event, account_id):
-    # {
-    #     'librarySectionType': 'show',
-    #     'ratingKey': '10358',
-    #     'key': '/library/metadata/10358',
-    #     'parentRatingKey': '10357',
-    #     'grandparentRatingKey': '2759',
-    #     'guid': 'com.plexapp.agents.thetvdb://350665/3/1?lang=ru',
-    #     'parentGuid': 'com.plexapp.agents.thetvdb://350665/3?lang=ru',
-    #     'grandparentGuid': 'com.plexapp.agents.thetvdb://350665?lang=ru',
-    #     'type': 'episode',
-    #     'title': 'Последствия',
-    #     'grandparentKey': '/library/metadata/2759',
-    #     'parentKey': '/library/metadata/10357',
-    #     'librarySectionTitle': 'TV Shows',
-    #     'librarySectionID': 2,
-    #     'librarySectionKey': '/library/sections/2',
-    #     'grandparentTitle': 'Новобранец',
-    #     'parentTitle': 'Season 3',
-    #     'contentRating': 'TV-14',
-    #     'summary': '',
-    #     'index': 1,
-    #     'parentIndex': 3,
-    #     'viewOffset': 80000,
-    #     'viewCount': 1,
-    #     'lastViewedAt': 1610366060,
-    #     'year': 2021,
-    #     'thumb': '/library/metadata/10358/thumb/1609872030',
-    #     'art': '/library/metadata/2759/art/1609872030',
-    #     'parentThumb': '/library/metadata/10357/thumb/1609872030',
-    #     'grandparentThumb': '/library/metadata/2759/thumb/1609872030',
-    #     'grandparentArt': '/library/metadata/2759/art/1609872030',
-    #     'grandparentTheme': '/library/metadata/2759/theme/1609872030',
-    #     'originallyAvailableAt': '2021-01-01',
-    #     'addedAt': 1609872000,
-    #     'updatedAt': 1609872030
-    # }
-
-    action, progress = get_action(event)
-    if not action:
-        raise ParseError()
-
-    with authenticate_trakt(account_id):
-        ids = dict()
-        guid = metadata['grandparentGuid']
-        media_key, media_id = parse_media_id(guid)
-        if media_id:
-            ids[media_key] = media_id
-
-        show = {
-            'title': metadata['title'],
-            'year': metadata['year'],
-            'ids': ids,
-        }
-
-        episode = {
-            'season': metadata['parentIndex'],
-            'number': metadata['index']
-        }
-
-        result = Trakt['scrobble'].action(
-            action=action,
-            show=show,
-            episode=episode,
-            progress=progress,
-        )
-
-    return result
+    return None
 
 
 @csrf_exempt
 @api_view(['POST'])
-# @parser_classes([JSONParser])
 def webhook(request: RestRequest, format=None):
     account_id = request.query_params.get('id')
     if not account_id:
         return HttpResponseBadRequest()
 
     payload = json.loads(request.data['payload'])
+    result = handle_payload(payload, account_id)
 
-    # plex_account = payload['Account']
-    metadata = payload['Metadata']
-
-    library_section_type = metadata['librarySectionType']
-    if library_section_type == 'movie':
-        result = handle_movie(metadata, payload['event'], account_id)
-        return RestResponse(result)
-
-    if library_section_type == 'show':
-        result = handle_show(metadata, payload['event'], account_id)
-        return RestResponse(result)
-
-    return RestResponse({'success': True})
+    return RestResponse(result)
 
 
 def authorize(request: HttpRequest):
