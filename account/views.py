@@ -1,7 +1,6 @@
 import json
 import re
 import uuid
-from datetime import datetime, timedelta
 
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseBadRequest, HttpRequest
@@ -16,25 +15,16 @@ from rest_framework.response import Response as RestResponse
 from trakt import Trakt
 
 from . import settings
-from .models import TraktAccount
+from .models import TraktAccount, TraktAuth
 
 ACCOUNT_ID_KEY = 'account_id'
 
 
 def authenticate_trakt(account_id: str):
     account = TraktAccount.objects.get(id=account_id)
+    auth = account.auth
 
-    # todo: refresh token here
-
-    created_at = account.updated_at.timestamp()
-    expires_in = timedelta(days=14).total_seconds()
-
-    return {
-        'access_token': account.access_token,
-        'refresh_token': account.refresh_token,
-        'created_at': created_at,
-        'expires_in': expires_in,
-    }
+    Trakt.configuration.defaults.oauth.from_response(auth.to_response(), refresh=True, username=account.username)
 
 
 def authorize_redirect_uri(request: HttpRequest):
@@ -209,7 +199,7 @@ def webhook(request: RestRequest, format=None):
     if not account_id:
         return HttpResponseBadRequest()
 
-    Trakt.configuration.defaults.oauth.from_response(authenticate_trakt(account_id))
+    authenticate_trakt(account_id)
 
     payload = json.loads(request.data['payload'])
 
@@ -237,11 +227,11 @@ def authorize(request: HttpRequest):
     if not csrf._compare_masked_tokens(request_csrf_token, csrf_token):
         raise PermissionDenied()
 
-    authorization = Trakt['oauth'].token_exchange(auth_code, authorize_redirect_uri(request))
-    if not authorization:
+    auth_response = Trakt['oauth'].token_exchange(auth_code, authorize_redirect_uri(request))
+    if not auth_response:
         raise Exception()
 
-    Trakt.configuration.defaults.oauth.from_response(authorization)
+    Trakt.configuration.defaults.oauth.from_response(auth_response, refresh=False)
 
     user_settings = Trakt['users/settings'].get()
     user = user_settings['user']
@@ -252,12 +242,17 @@ def authorize(request: HttpRequest):
         account = TraktAccount(
             id=uuid.uuid4().hex,
             username=user['username'],
+            auth=TraktAuth(),
         )
 
-    account.access_token = authorization['access_token']
-    account.refresh_token = authorization['refresh_token']
-    account.updated_at = datetime.utcnow()
+    auth = account.auth
+    if not auth:
+        auth = TraktAuth()
+        account.auth = auth
 
+    auth.from_response(auth_response)
+
+    auth.save()
     account.save()
 
     request.session[ACCOUNT_ID_KEY] = account.id
