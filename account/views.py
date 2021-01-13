@@ -109,7 +109,6 @@ def find_season(metadata):
         return {
             'title': metadata['title'],
             'season': metadata['index'],
-            'year': metadata['year'],
             'ids': find_ids(metadata),
         }
 
