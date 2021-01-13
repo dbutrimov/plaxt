@@ -223,7 +223,7 @@ def find_scrobble_action(event):
         return 'stop', 0
 
     if event in ['media.scrobble']:
-        return 'stop', 90
+        return 'start', 90
 
     return None
 
