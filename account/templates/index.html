@@ -50,7 +50,7 @@
                             </div>
 
                             <div class="col-12">
-                                <button type="submit" class="btn btn-primary">Unlink</button>
+                                <button type="submit" class="btn btn-sm btn-primary">Unlink</button>
                             </div>
                         </form>
                     </div>
@@ -61,15 +61,17 @@
                             {% csrf_token %}
 
                             <div class="col-12">
-                                <input type="text" class="form-control" name="username" placeholder="Username">
+                                <input type="text" class="form-control form-control-sm"
+                                       name="username" placeholder="Username">
                             </div>
 
                             <div class="col-12">
-                                <input type="password" class="form-control" name="password" placeholder="Password">
+                                <input type="password" class="form-control form-control-sm"
+                                       name="password" placeholder="Password">
                             </div>
 
                             <div class="col-12">
-                                <button type="submit" class="btn btn-primary">Link</button>
+                                <button type="submit" class="btn btn-sm btn-primary">Link</button>
                             </div>
                         </form>
                     </div>
