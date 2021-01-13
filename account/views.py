@@ -161,27 +161,11 @@ def handle_rating(metadata, account_id):
         show['rated_at'] = rated_at
         shows.append(show)
 
-    seasons = []
-    if media_type == 'season':
-        season = find_season(metadata)
-        season['rating'] = rating
-        season['rated_at'] = rated_at
-        seasons.append(season)
-
-    episodes = []
-    if media_type == 'episode':
-        episode = find_episode(metadata)
-        episode['rating'] = rating
-        episode['rated_at'] = rated_at
-        episodes.append(episode)
-
-    if len(movies) > 0 or len(shows) > 0 or len(seasons) > 0 or len(episodes) > 0:
+    if len(movies) > 0 or len(shows) > 0:
         with authenticate_trakt(account_id):
             return Trakt['sync/ratings'].add({
                 'movies': movies,
                 'shows': shows,
-                'seasons': seasons,
-                'episodes': episodes,
             })
 
     return None
