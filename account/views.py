@@ -9,13 +9,15 @@ from django.middleware import csrf
 from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from plexapi.myplex import MyPlexAccount
 from rest_framework.decorators import api_view
 from rest_framework.request import Request as RestRequest
 from rest_framework.response import Response as RestResponse
 from trakt import Trakt
 
 from . import settings
-from .models import TraktAccount, TraktAuth
+from .models import TraktAccount, TraktAuth, PlexAccount
 
 logger = logging.getLogger(__name__)
 
@@ -241,8 +243,16 @@ def webhook(request: RestRequest, format=None):
         return HttpResponseBadRequest()
 
     payload = json.loads(request.data['payload'])
-    result = handle_payload(payload, account_id)
 
+    account = TraktAccount.objects.get(id=account_id)
+    plex_account = account.plex_account
+    if plex_account:
+        account_metadata = payload['Account']
+        plex_username = account_metadata['title']
+        if plex_account.username.lower() != plex_username.lower():
+            return RestResponse(None)
+
+    result = handle_payload(payload, account_id)
     return RestResponse(result)
 
 
@@ -313,6 +323,7 @@ def login(request: HttpRequest):
     return render(request, 'login.html', context)
 
 
+@require_POST
 def logout(request: HttpRequest):
     try:
         del request.session[ACCOUNT_ID_KEY]
@@ -321,6 +332,7 @@ def logout(request: HttpRequest):
     return redirect('index')
 
 
+@require_POST
 def delete(request: HttpRequest):
     account_id = request.session.get(ACCOUNT_ID_KEY)
     if not account_id:
@@ -337,13 +349,56 @@ def delete(request: HttpRequest):
     return redirect('index')
 
 
-def index(request: HttpRequest):
-    if ACCOUNT_ID_KEY not in request.session:
-        return redirect('login')
-
+@require_POST
+def link(request: HttpRequest):
     account_id = request.session.get(ACCOUNT_ID_KEY)
     if not account_id:
-        return render(request, 'index.html', {})
+        return redirect('login')
+
+    username = request.POST.get('username')
+    password = request.POST.get('password')
+
+    plex_account = MyPlexAccount(username, password)
+    plex_token = plex_account.authenticationToken
+    devices = plex_account.devices()
+    device = next((e for e in devices if e.provides == 'server'), None)
+    connection = device.connections[0]
+
+    account = TraktAccount.objects.get(id=account_id)
+    plex = PlexAccount(
+        username=plex_account.username,
+        token=plex_token,
+    )
+
+    plex.save()
+
+    account.plex_account = plex
+    account.save()
+
+    return redirect('index')
+
+
+@require_POST
+def unlink(request: HttpRequest):
+    account_id = request.session.get(ACCOUNT_ID_KEY)
+    if not account_id:
+        return redirect('login')
+
+    account = TraktAccount.objects.get(id=account_id)
+    plex_account = account.plex_account
+    if plex_account:
+        account.plex_account = None
+        account.save()
+
+        plex_account.delete()
+
+    return redirect('index')
+
+
+def index(request: HttpRequest):
+    account_id = request.session.get(ACCOUNT_ID_KEY)
+    if not account_id:
+        return redirect('login')
 
     account = TraktAccount.objects.get(id=account_id)
 

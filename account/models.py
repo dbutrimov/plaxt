@@ -1,6 +1,11 @@
 from django.db import models
 
 
+class PlexAccount(models.Model):
+    username = models.CharField(max_length=64, db_index=True)
+    token = models.CharField(max_length=32)
+
+
 class TraktAuth(models.Model):
     access_token = models.CharField(max_length=64)
     token_type = models.CharField(max_length=32)
@@ -35,3 +40,4 @@ class TraktAccount(models.Model):
     created_at = models.DateTimeField(auto_now=True)
 
     auth = models.ForeignKey(TraktAuth, on_delete=models.CASCADE)
+    plex_account = models.ForeignKey(PlexAccount, null=True, on_delete=models.CASCADE)
