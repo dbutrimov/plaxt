@@ -4,18 +4,19 @@ import re
 from datetime import datetime
 
 from django.core.exceptions import PermissionDenied
-from django.http import HttpResponseBadRequest, HttpRequest
+from django.http import HttpResponseBadRequest, HttpRequest, JsonResponse
 from django.middleware import csrf
-from django.shortcuts import render, redirect
+from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils.decorators import method_decorator
+from django.views import View
 from django.views.decorators.csrf import csrf_exempt
-from rest_framework.decorators import api_view
-from rest_framework.request import Request as RestRequest
-from rest_framework.response import Response as RestResponse
+from django.views.generic import TemplateView
+from plexapi.myplex import MyPlexAccount
 from trakt import Trakt
 
 from . import settings
-from .models import TraktAccount, TraktAuth
+from .models import TraktAccount, TraktAuth, PlexAccount
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +24,13 @@ ACCOUNT_ID_KEY = 'account_id'
 
 
 def authenticate_trakt(account_id: str):
-    account = TraktAccount.objects.get(id=account_id)
+    account = TraktAccount.objects.get(uuid=account_id)
     auth = account.auth
 
     return Trakt.configuration.defaults.oauth.from_response(
         response=auth.to_response(),
         refresh=True,
-        username=account.username,
+        username=account_id,
     )
 
 
@@ -233,123 +234,212 @@ def handle_payload(payload, account_id):
     return None
 
 
-@csrf_exempt
-@api_view(['POST'])
-def webhook(request: RestRequest, format=None):
-    account_id = request.query_params.get('id')
-    if not account_id:
-        return HttpResponseBadRequest()
+@method_decorator(csrf_exempt, name='dispatch')
+class WebhookView(View):
+    http_method_names = ['post']
 
-    payload = json.loads(request.data['payload'])
-    result = handle_payload(payload, account_id)
+    def post(self, request):
+        account_id = request.GET.get('id')
+        if not account_id:
+            return HttpResponseBadRequest()
 
-    return RestResponse(result)
+        payload = json.loads(request.POST['payload'])
 
+        account = TraktAccount.objects.get(uuid=account_id)
+        plex_account = account.plex_account
+        if plex_account:
+            account_metadata = payload['Account']
+            plex_username = account_metadata['title']
+            if plex_account.username.lower() != plex_username.lower():
+                return JsonResponse(None)
 
-def authorize(request: HttpRequest):
-    auth_code = request.GET.get('code')
-    state = request.GET.get('state')
-
-    csrf_token = csrf.get_token(request)
-    request_csrf_token = csrf._sanitize_token(state)
-    if not csrf._compare_masked_tokens(request_csrf_token, csrf_token):
-        raise PermissionDenied()
-
-    auth_response = Trakt['oauth'].token_exchange(auth_code, authorize_redirect_uri(request))
-    if not auth_response:
-        raise Exception()
-
-    with Trakt.configuration.defaults.oauth.from_response(auth_response):
-        user_settings = Trakt['users/settings'].get()
-        user = user_settings['user']
-        user_id = user['ids']['uuid']
-        username = user['username']
-
-    account = TraktAccount.objects.filter(username=username).first()
-    if not account:
-        account = TraktAccount(
-            id=user_id,
-            username=username,
-            auth=TraktAuth(),
-        )
-
-    auth = account.auth
-    if not auth:
-        auth = TraktAuth()
-        account.auth = auth
-
-    auth.from_response(auth_response)
-
-    auth.save()
-    account.save()
-
-    request.session[ACCOUNT_ID_KEY] = account.id
-
-    return redirect('index')
+        result = handle_payload(payload, account_id)
+        return JsonResponse(result)
 
 
-def login(request: HttpRequest):
-    if ACCOUNT_ID_KEY in request.session:
+class AuthorizeView(View):
+    http_method_names = ['get']
+
+    def get(self, request):
+        auth_code = request.GET.get('code')
+        state = request.GET.get('state')
+
+        csrf_token = csrf.get_token(request)
+        request_csrf_token = csrf._sanitize_token(state)
+        if not csrf._compare_masked_tokens(request_csrf_token, csrf_token):
+            raise PermissionDenied()
+
+        auth_response = Trakt['oauth'].token_exchange(auth_code, authorize_redirect_uri(request))
+        if not auth_response:
+            raise Exception()
+
+        with Trakt.configuration.defaults.oauth.from_response(auth_response):
+            user_settings = Trakt['users/settings'].get()
+            user = user_settings['user']
+            user_id = user['ids']['uuid']
+            username = user['username']
+
+        account = TraktAccount.objects.filter(uuid=user_id).first()
+        if not account:
+            account = TraktAccount(
+                uuid=user_id,
+                username=username,
+                auth=TraktAuth(),
+            )
+        else:
+            account.username = username
+
+        auth = account.auth
+        if not auth:
+            auth = TraktAuth()
+            account.auth = auth
+
+        auth.from_response(auth_response)
+
+        auth.save()
+        account.save()
+
+        request.session[ACCOUNT_ID_KEY] = account.uuid
+
         return redirect('index')
 
-    # url = '{0}?client_id={1}&redirect_uri={2}&response_type={3}'.format(
-    #     'https://trakt.tv/oauth/authorize',
-    #     settings.TRAKT_CLIENT,
-    #     urllib.parse.quote(redirect_uri(request), safe=''),
-    #     'code',
-    # )
-    #
-    # return redirect(url)
 
-    csrf_token = csrf.get_token(request)
-    context = {
-        'action': 'https://trakt.tv/oauth/authorize',
-        'client_id': settings.TRAKT_CLIENT,
-        'redirect_uri': authorize_redirect_uri(request),
-        'response_type': 'code',
-        'state': csrf_token,
-    }
+class LinkView(View):
+    http_method_names = ['post']
 
-    return render(request, 'login.html', context)
+    def post(self, request):
+        account_id = request.session.get(ACCOUNT_ID_KEY)
+        if not account_id:
+            return redirect('login')
 
+        username = request.POST.get('username')
+        password = request.POST.get('password')
 
-def logout(request: HttpRequest):
-    try:
-        del request.session[ACCOUNT_ID_KEY]
-    except KeyError:
-        pass
-    return redirect('index')
+        plex_account = MyPlexAccount(username, password)
+        plex_token = plex_account.authenticationToken
 
+        account = TraktAccount.objects.get(uuid=account_id)
+        plex = PlexAccount(
+            uuid=plex_account.uuid,
+            username=plex_account.username,
+            token=plex_token,
+        )
 
-def delete(request: HttpRequest):
-    account_id = request.session.get(ACCOUNT_ID_KEY)
-    if not account_id:
-        return redirect('login')
+        plex.save()
 
-    try:
-        del request.session[ACCOUNT_ID_KEY]
-    except KeyError:
-        pass
+        account.plex_account = plex
+        account.save()
 
-    account = TraktAccount.objects.get(id=account_id)
-    account.delete()
-
-    return redirect('index')
+        return redirect('index')
 
 
-def index(request: HttpRequest):
-    if ACCOUNT_ID_KEY not in request.session:
-        return redirect('login')
+class UnlinkView(View):
+    http_method_names = ['post']
 
-    account_id = request.session.get(ACCOUNT_ID_KEY)
-    if not account_id:
-        return render(request, 'index.html', {})
+    def post(self, request):
+        account_id = request.session.get(ACCOUNT_ID_KEY)
+        if not account_id:
+            return redirect('login')
 
-    account = TraktAccount.objects.get(id=account_id)
+        account = TraktAccount.objects.get(uuid=account_id)
+        plex_account = account.plex_account
+        if plex_account:
+            account.plex_account = None
+            account.save()
 
-    context = {
-        'account': account,
-        'webhook_uri': '{0}?id={1}'.format(request.build_absolute_uri('webhook'), account.id),
-    }
+            plex_account.delete()
 
-    return render(request, 'index.html', context)
+        return redirect('index')
+
+
+class LoginView(TemplateView):
+    template_name = "login.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        account_id = request.session.get(ACCOUNT_ID_KEY)
+        if account_id:
+            return redirect('index')
+
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        request = self.request
+
+        csrf_token = csrf.get_token(request)
+        context.update({
+            'action': 'https://trakt.tv/oauth/authorize',
+            'client_id': settings.TRAKT_CLIENT,
+            'redirect_uri': authorize_redirect_uri(request),
+            'response_type': 'code',
+            'state': csrf_token,
+        })
+
+        return context
+
+
+class LogoutView(View):
+    http_method_names = ['post']
+
+    def post(self, request):
+        try:
+            del request.session[ACCOUNT_ID_KEY]
+        except KeyError:
+            pass
+
+        return redirect('index')
+
+
+class DeleteView(View):
+    http_method_names = ['post']
+
+    def post(self, request):
+        account_id = request.session.get(ACCOUNT_ID_KEY)
+        if not account_id:
+            return redirect('login')
+
+        try:
+            del request.session[ACCOUNT_ID_KEY]
+        except KeyError:
+            pass
+
+        account = TraktAccount.objects.get(uuid=account_id)
+        account.delete()
+
+        return redirect('index')
+
+
+class IndexView(TemplateView):
+    template_name = "index.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        account_id = request.session.get(ACCOUNT_ID_KEY)
+        if not account_id:
+            return redirect('login')
+
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        request = self.request
+        account_id = request.session[ACCOUNT_ID_KEY]
+        account = TraktAccount.objects.get(uuid=account_id)
+
+        context.update({
+            'account': account,
+            'webhook_uri': '{0}?id={1}'.format(request.build_absolute_uri('webhook'), account.uuid),
+        })
+
+        # db_plex_account = account.plex_account
+        # if db_plex_account:
+        #     plex_account = MyPlexAccount(db_plex_account.username, token=db_plex_account.token)
+        #     devices = plex_account.devices()
+        #     servers = [x for x in devices if x.provides.lower() == 'server']
+        #
+        #     context.update({
+        #         'servers': servers,
+        #     })
+
+        return context

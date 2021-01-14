@@ -1,12 +1,18 @@
 from django.db import models
 
 
+class PlexAccount(models.Model):
+    uuid = models.CharField(max_length=64, db_index=True)
+    username = models.CharField(max_length=64, db_index=True)
+    token = models.CharField(max_length=32)
+
+
 class TraktAuth(models.Model):
     access_token = models.CharField(max_length=64)
     token_type = models.CharField(max_length=32)
     expires_in = models.IntegerField()
     refresh_token = models.CharField(max_length=64)
-    scope = models.CharField(max_length=32)
+    scope = models.CharField(max_length=32, null=True)
     created_at = models.IntegerField()
 
     def from_response(self, response: dict):
@@ -30,8 +36,9 @@ class TraktAuth(models.Model):
 
 
 class TraktAccount(models.Model):
-    id = models.CharField(max_length=64, primary_key=True)
-    username = models.CharField(max_length=64, unique=True, db_index=True)
+    uuid = models.CharField(max_length=64, unique=True, db_index=True)
+    username = models.CharField(max_length=64, db_index=True)
     created_at = models.DateTimeField(auto_now=True)
 
     auth = models.ForeignKey(TraktAuth, on_delete=models.CASCADE)
+    plex_account = models.ForeignKey(PlexAccount, null=True, on_delete=models.CASCADE)

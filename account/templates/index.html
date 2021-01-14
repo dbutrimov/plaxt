@@ -39,7 +39,43 @@
             <div class="container mb-5">
                 <h5><span class="text-secondary">Tip #2:</span> Link your Plex account.</h5>
 
-                <div class="container"><span class="text-secondary"><i>Coming soon...</i></span></div>
+                {% if account.plex_account %}
+                    <div class="container">
+                        <form class="row row-cols-lg-auto g-3 align-items-center"
+                              method="post" action="{% url 'unlink' %}">
+                            {% csrf_token %}
+
+                            <div class="col-12">
+                                <span>{{ account.plex_account.username }}</span>
+                            </div>
+
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-sm btn-primary">Unlink</button>
+                            </div>
+                        </form>
+                    </div>
+                {% else %}
+                    <div class="container">
+                        <form class="row row-cols-lg-auto g-3 align-items-center"
+                              method="post" action="{% url 'link' %}">
+                            {% csrf_token %}
+
+                            <div class="col-12">
+                                <input type="text" class="form-control form-control-sm"
+                                       name="username" placeholder="Username">
+                            </div>
+
+                            <div class="col-12">
+                                <input type="password" class="form-control form-control-sm"
+                                       name="password" placeholder="Password">
+                            </div>
+
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-sm btn-primary">Link</button>
+                            </div>
+                        </form>
+                    </div>
+                {% endif %}
             </div>
 
             <div class="container mb-5">
