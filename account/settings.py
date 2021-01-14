@@ -12,6 +12,3 @@ if os.path.isfile(env_file):
 
 TRAKT_CLIENT = env.str('TRAKT_CLIENT')
 TRAKT_SECRET = env.str('TRAKT_SECRET')
-
-PLEX_URL = env.str('PLEX_URL')
-PLEX_TOKEN = env.str('PLEX_TOKEN')
