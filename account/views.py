@@ -24,13 +24,13 @@ ACCOUNT_ID_KEY = 'account_id'
 
 
 def authenticate_trakt(account_id: str):
-    account = TraktAccount.objects.get(id=account_id)
+    account = TraktAccount.objects.get(uuid=account_id)
     auth = account.auth
 
     return Trakt.configuration.defaults.oauth.from_response(
         response=auth.to_response(),
         refresh=True,
-        username=account.username,
+        username=account_id,
     )
 
 
@@ -245,7 +245,7 @@ class WebhookView(View):
 
         payload = json.loads(request.POST['payload'])
 
-        account = TraktAccount.objects.get(id=account_id)
+        account = TraktAccount.objects.get(uuid=account_id)
         plex_account = account.plex_account
         if plex_account:
             account_metadata = payload['Account']
@@ -279,13 +279,15 @@ class AuthorizeView(View):
             user_id = user['ids']['uuid']
             username = user['username']
 
-        account = TraktAccount.objects.filter(username=username).first()
+        account = TraktAccount.objects.filter(uuid=user_id).first()
         if not account:
             account = TraktAccount(
-                id=user_id,
+                uuid=user_id,
                 username=username,
                 auth=TraktAuth(),
             )
+        else:
+            account.username = username
 
         auth = account.auth
         if not auth:
@@ -297,7 +299,7 @@ class AuthorizeView(View):
         auth.save()
         account.save()
 
-        request.session[ACCOUNT_ID_KEY] = account.id
+        request.session[ACCOUNT_ID_KEY] = account.uuid
 
         return redirect('index')
 
@@ -315,12 +317,10 @@ class LinkView(View):
 
         plex_account = MyPlexAccount(username, password)
         plex_token = plex_account.authenticationToken
-        devices = plex_account.devices()
-        device = next((e for e in devices if e.provides == 'server'), None)
-        connection = device.connections[0]
 
-        account = TraktAccount.objects.get(id=account_id)
+        account = TraktAccount.objects.get(uuid=account_id)
         plex = PlexAccount(
+            uuid=plex_account.uuid,
             username=plex_account.username,
             token=plex_token,
         )
@@ -341,7 +341,7 @@ class UnlinkView(View):
         if not account_id:
             return redirect('login')
 
-        account = TraktAccount.objects.get(id=account_id)
+        account = TraktAccount.objects.get(uuid=account_id)
         plex_account = account.plex_account
         if plex_account:
             account.plex_account = None
@@ -404,7 +404,7 @@ class DeleteView(View):
         except KeyError:
             pass
 
-        account = TraktAccount.objects.get(id=account_id)
+        account = TraktAccount.objects.get(uuid=account_id)
         account.delete()
 
         return redirect('index')
@@ -425,11 +425,21 @@ class IndexView(TemplateView):
 
         request = self.request
         account_id = request.session[ACCOUNT_ID_KEY]
-        account = TraktAccount.objects.get(id=account_id)
+        account = TraktAccount.objects.get(uuid=account_id)
 
         context.update({
             'account': account,
-            'webhook_uri': '{0}?id={1}'.format(request.build_absolute_uri('webhook'), account.id),
+            'webhook_uri': '{0}?id={1}'.format(request.build_absolute_uri('webhook'), account.uuid),
         })
+
+        # db_plex_account = account.plex_account
+        # if db_plex_account:
+        #     plex_account = MyPlexAccount(db_plex_account.username, token=db_plex_account.token)
+        #     devices = plex_account.devices()
+        #     servers = [x for x in devices if x.provides.lower() == 'server']
+        #
+        #     context.update({
+        #         'servers': servers,
+        #     })
 
         return context
