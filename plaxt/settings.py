@@ -22,7 +22,7 @@ SECRET_KEY = env.str('SECRET_KEY')
 DEBUG = env.bool('DEBUG', default=False)
 
 # Init logging
-log_handlers = {
+logging_handlers = {
     'console': {
         'class': 'logging.StreamHandler',
         'stream': sys.stdout,
@@ -30,17 +30,17 @@ log_handlers = {
     },
 }
 
-LOG_FILENAME = env.str('LOG_FILENAME', default=None)
-if LOG_FILENAME and len(LOG_FILENAME) > 0:
-    log_handlers['file'] = {
+log_filename = env.str('LOG_FILENAME', default=None)
+if log_filename:
+    logging_handlers['file'] = {
         'class': 'logging.handlers.RotatingFileHandler',
-        'filename': LOG_FILENAME,
+        'filename': log_filename,
         'maxBytes': 1048576,  # 1MB
         'backupCount': 5,
         'formatter': 'file',
     }
 
-LOG_LEVEL = env.str('LOG_LEVEL', default='WARNING')
+log_level = env.str('LOG_LEVEL', default='WARNING')
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -52,10 +52,10 @@ LOGGING = {
             'format': "%(asctime)-24s %(levelname)-8s %(name)-24s %(message)s",
         },
     },
-    'handlers': log_handlers,
+    'handlers': logging_handlers,
     'root': {
-        'handlers': log_handlers.keys(),
-        'level': LOG_LEVEL,
+        'handlers': logging_handlers.keys(),
+        'level': log_level,
     },
 }
 
@@ -63,13 +63,7 @@ ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
 
 # Application definition
 
-if DEBUG:
-    INSTALLED_APPS = [
-        'whitenoise.runserver_nostatic',
-    ]
-else:
-    INSTALLED_APPS = []
-
+INSTALLED_APPS = ['whitenoise.runserver_nostatic'] if DEBUG else []
 INSTALLED_APPS += [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -93,8 +87,9 @@ ROOT_URLCONF = 'plaxt.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'templates')]
-        ,
+        'DIRS': [
+            os.path.join(BASE_DIR, 'templates'),
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -112,7 +107,7 @@ WSGI_APPLICATION = 'plaxt.wsgi.application'
 # https://docs.djangoproject.com/en/3.1/ref/settings/#databases
 
 DATABASES = {
-    'default': env.db('DATABASE_URL')
+    'default': env.db('DATABASE_URL'),
 }
 
 
