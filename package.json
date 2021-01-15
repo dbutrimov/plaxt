@@ -1,13 +1,11 @@
 {
-  "dependencies": {
+  "devDependencies": {
     "bootstrap": "^5.0.0-beta1",
-    "jquery": "^3.5.1"
+    "jquery": "^3.5.1",
+    "del": "^6.0.0",
+    "gulp": "^4.0.2"
   },
   "scripts": {
     "install": "gulp"
-  },
-  "devDependencies": {
-    "del": "^6.0.0",
-    "gulp": "^4.0.2"
   }
 }

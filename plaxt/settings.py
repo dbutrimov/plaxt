@@ -1,17 +1,16 @@
 import os
 import sys
 
-from environ import Env
+import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Read environment variables
-env = Env()
+env = environ.Env()
 
-env_file = env.str('ENV_FILE', default=os.path.join(BASE_DIR, '.env'))
-if os.path.isfile(env_file):
-    Env.read_env(env_file=env_file)  # reading .env file
+env_path = env.str('ENV_PATH', default=os.path.join(BASE_DIR, '.env'))
+environ.Env.read_env(env_file=env_path)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
@@ -27,7 +26,7 @@ log_handlers = {
     'console': {
         'class': 'logging.StreamHandler',
         'stream': sys.stdout,
-        'formatter': 'standard',
+        'formatter': 'console',
     },
 }
 
@@ -38,7 +37,7 @@ if LOG_FILENAME and len(LOG_FILENAME) > 0:
         'filename': LOG_FILENAME,
         'maxBytes': 1048576,  # 1MB
         'backupCount': 5,
-        'formatter': 'standard',
+        'formatter': 'file',
     }
 
 LOG_LEVEL = env.str('LOG_LEVEL', default='WARNING')
@@ -46,8 +45,11 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
-        'standard': {
-            'format': "%(asctime)s [%(levelname)s] [%(name)s:%(lineno)s] %(message)s",
+        'console': {
+            'format': "%(levelname)-8s %(name)-24s %(message)s",
+        },
+        'file': {
+            'format': "%(asctime)-24s %(levelname)-8s %(name)-24s %(message)s",
         },
     },
     'handlers': log_handlers,
