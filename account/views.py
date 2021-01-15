@@ -37,6 +37,10 @@ def build_trakt_redirect_uri(request: HttpRequest):
     return request.build_absolute_uri(reverse('authorize'))
 
 
+def build_webhook_uri(request: HttpRequest, account_id):
+    return '{0}?id={1}'.format(request.build_absolute_uri('/webhook'), account_id)
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class WebhookView(View):
     http_method_names = ['post']
@@ -325,7 +329,7 @@ class IndexView(TemplateView):
 
         context.update({
             'account': account,
-            'webhook_uri': '{0}?id={1}'.format(request.build_absolute_uri('webhook'), account.uuid),
+            'webhook_uri': build_webhook_uri(request, account.uuid),
         })
 
         # db_plex_account = account.plex_account
