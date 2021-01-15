@@ -138,10 +138,7 @@ class WebhookView(View):
         return None
 
     def post(self, request):
-        account_id = request.GET.get('id')
-        if not account_id:
-            return HttpResponseBadRequest()
-
+        account_id = request.GET['id']
         payload = json.loads(request.POST['payload'])
 
         account = TraktAccount.objects.get(uuid=account_id)
@@ -160,8 +157,8 @@ class AuthorizeView(View):
     http_method_names = ['get']
 
     def get(self, request):
-        auth_code = request.GET.get('code')
-        state = request.GET.get('state')
+        auth_code = request.GET['code']
+        state = request.GET['state']
 
         csrf_token = csrf.get_token(request)
         request_csrf_token = csrf._sanitize_token(state)
@@ -211,8 +208,8 @@ class LinkView(View):
         if not account_id:
             return redirect('login')
 
-        username = request.POST.get('username')
-        password = request.POST.get('password')
+        username = request.POST['username']
+        password = request.POST['password']
 
         plex_account = MyPlexAccount(username, password)
         plex_token = plex_account.authenticationToken
