@@ -117,7 +117,7 @@ class WebhookView(View):
             return 'stop', 0
 
         if event in ['media.scrobble']:
-            return 'start', 90
+            return 'stop', 90
 
         return None
 
