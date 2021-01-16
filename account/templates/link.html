@@ -1,0 +1,36 @@
+{% if link_form %}
+    <form class="row row-cols-lg-auto g-3 align-items-center"
+          method="post" action="{% url 'link' %}">
+        {% csrf_token %}
+
+        <div class="col-12">
+            <label class="visually-hidden" for="linkUsernameInput">Username</label>
+            <input id="linkUsernameInput" type="text" name="username" placeholder="Username"
+                   value="{{ link_form.username.value|default:"" }}"
+                   class="form-control form-control-sm {% if link_form.username.errors or link_form.non_field_errors %}is-invalid{% endif %}">
+        </div>
+
+        <div class="col-12">
+            <label class="visually-hidden" for="linkPasswordInput">Password</label>
+            <input id="linkPasswordInput" type="password" name="password" placeholder="Password"
+                   class="form-control form-control-sm {% if link_form.password.errors %}is-invalid{% endif %}">
+        </div>
+
+        <div class="col-12">
+            <button type="submit" class="btn btn-sm btn-primary">Link</button>
+        </div>
+    </form>
+{% elif account.plex_account %}
+    <form class="row row-cols-lg-auto g-3 align-items-center"
+          method="post" action="{% url 'unlink' %}">
+        {% csrf_token %}
+
+        <div class="col-12">
+            <i class="bi bi-person-square"></i> {{ account.plex_account.username }}
+        </div>
+
+        <div class="col-12">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Unlink</button>
+        </div>
+    </form>
+{% endif %}

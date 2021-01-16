@@ -2,10 +2,10 @@ import json
 import logging
 from datetime import datetime
 
-from django.core.exceptions import PermissionDenied
-from django.http import HttpResponseBadRequest, HttpRequest, JsonResponse
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import HttpRequest, JsonResponse
 from django.middleware import csrf
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.decorators import method_decorator
 from django.views import View
@@ -15,6 +15,7 @@ from plexapi.myplex import MyPlexAccount
 from trakt import Trakt
 
 from . import settings, trakt_utils
+from .forms import LinkForm
 from .models import TraktAccount, TraktAuth, PlexAccount
 
 logger = logging.getLogger(__name__)
@@ -212,13 +213,35 @@ class LinkView(View):
         if not account_id:
             return redirect('login')
 
-        username = request.POST['username']
-        password = request.POST['password']
-
-        plex_account = MyPlexAccount(username, password)
-        plex_token = plex_account.authenticationToken
-
         account = TraktAccount.objects.get(uuid=account_id)
+
+        form = LinkForm(request.POST)
+        if not form.is_valid():
+            context = {
+                'account': account,
+                'link_form': form,
+                'webhook_uri': build_webhook_uri(request, account.uuid),
+            }
+
+            return render(request, 'index.html', context)
+
+        username = form.cleaned_data['username']
+        password = form.cleaned_data['password']
+
+        try:
+            plex_account = MyPlexAccount(username, password)
+            plex_token = plex_account.authenticationToken
+        except Exception:
+            form.add_error(None, ValidationError("Authorization failed!"))
+
+            context = {
+                'account': account,
+                'link_form': form,
+                'webhook_uri': build_webhook_uri(request, account.uuid),
+            }
+
+            return render(request, 'index.html', context)
+
         plex = PlexAccount(
             uuid=plex_account.uuid,
             username=plex_account.username,
@@ -327,8 +350,12 @@ class IndexView(TemplateView):
         account_id = request.session[ACCOUNT_ID_KEY]
         account = TraktAccount.objects.get(uuid=account_id)
 
+        plex_account = account.plex_account
+        link_form = LinkForm() if not plex_account else None
+
         context.update({
             'account': account,
+            'link_form': link_form,
             'webhook_uri': build_webhook_uri(request, account.uuid),
         })
 

@@ -31,6 +31,24 @@ function bootstrap() {
     return gulp.series(bootstrap_clean, gulp.parallel(bootstrap_css, bootstrap_javascript))
 }
 
+function bootstrap_icons() {
+    function bootstrap_icons_clean(cb) {
+        del.sync(['./static/bootstrap-icons'])
+        cb()
+    }
+
+    function bootstrap_icons_font() {
+        const files = [
+            './node_modules/bootstrap-icons/font/**',
+            '!./node_modules/bootstrap-icons/font/index.html',
+        ]
+        return gulp.src(files)
+            .pipe(gulp.dest('./static/bootstrap-icons/font'))
+    }
+
+    return gulp.series(bootstrap_icons_clean, gulp.parallel(bootstrap_icons_font))
+}
+
 function jquery() {
     function jquery_clean(cb) {
         del.sync(['./static/jquery'])
@@ -49,4 +67,8 @@ function jquery() {
     return gulp.series(jquery_clean, gulp.parallel(jquery_javascript))
 }
 
-exports.default = gulp.series(bootstrap(), jquery())
+exports.default = gulp.series(
+    bootstrap(),
+    bootstrap_icons(),
+    jquery(),
+)
