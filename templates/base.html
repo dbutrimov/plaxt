@@ -9,6 +9,7 @@
     <link rel="shortcut icon" href="{% static 'favicon.ico' %}"/>
 
     <link rel="stylesheet" href="{% static 'bootstrap/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'bootstrap-icons/font/bootstrap-icons.css' %}">
 </head>
 
 <body>
@@ -40,10 +41,10 @@
     <div class="container text-center">
         Powered by
         <a href="https://jquery.com/">jQuery</a>
-        <span id="jquery-version"></span>
+        <span id="jqueryVersionText"></span>
         and
         <a href="https://getbootstrap.com/">Bootstrap</a>
-        <span id="bootstrap-version"></span>
+        <span id="bootstrapVersionText"></span>
     </div>
 </footer>
 
@@ -52,8 +53,8 @@
 
 <script>
     $(document).ready(function () {
-        $('#jquery-version').text($.fn.jquery.split(" ", 1));
-        $('#bootstrap-version').text($.fn.tooltip.Constructor.VERSION);
+        $('#jqueryVersionText').text($.fn.jquery.split(" ", 1));
+        $('#bootstrapVersionText').text($.fn.tooltip.Constructor.VERSION);
     });
 </script>
 
