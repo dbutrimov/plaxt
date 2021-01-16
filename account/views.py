@@ -127,11 +127,11 @@ class WebhookView(View):
         media_type = metadata['type']
 
         logger.info(
-            'handle_payload: event={0}; type={1}; guid={2}'.format(
-                event,
-                media_type,
-                metadata['guid'],
-            ))
+            'handle_payload: {0}'.format({
+                'event': event,
+                'type': media_type,
+                'guid': metadata['guid'],
+            }))
 
         if event == 'media.rate':
             return self.handle_rating(metadata, account_id)
@@ -155,7 +155,7 @@ class WebhookView(View):
                 return JsonResponse(None)
 
         result = self.handle_payload(payload, account_id)
-        logger.info('result: ' + result)
+        logger.info('result: {0}'.format(result))
 
         return JsonResponse(result)
 
