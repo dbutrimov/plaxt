@@ -142,6 +142,8 @@ class WebhookView(View):
 
         return None
 
+    _REJECTED = {'status': 'rejected'}
+
     def post(self, request):
         account_id = request.GET['id']
         payload = json.loads(request.POST['payload'])
@@ -152,9 +154,11 @@ class WebhookView(View):
             account_metadata = payload['Account']
             plex_username = account_metadata['title']
             if plex_account.username.lower() != plex_username.lower():
-                return JsonResponse(None)
+                result = self._REJECTED
+                logger.info('result: {0}'.format(result))
+                return JsonResponse(result)
 
-        result = self.handle_payload(payload, account_id)
+        result = self.handle_payload(payload, account_id) or self._REJECTED
         logger.info('result: {0}'.format(result))
 
         return JsonResponse(result)
