@@ -155,6 +155,8 @@ class WebhookView(View):
                 return JsonResponse(None)
 
         result = self.handle_payload(payload, account_id)
+        logger.info('result: ' + result)
+
         return JsonResponse(result)
 
 
