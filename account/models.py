@@ -5,6 +5,7 @@ class PlexAccount(models.Model):
     uuid = models.CharField(max_length=64, db_index=True)
     username = models.CharField(max_length=64, db_index=True)
     token = models.CharField(max_length=32)
+    server = models.CharField(max_length=128, null=True)
 
 
 class TraktAuth(models.Model):

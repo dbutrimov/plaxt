@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.validators import RegexValidator
 from django.http import HttpRequest, JsonResponse
 from django.middleware import csrf
 from django.shortcuts import redirect, render
@@ -339,6 +340,50 @@ class DeleteView(View):
         return redirect('index')
 
 
+@method_decorator(csrf_exempt, name='dispatch')
+class ServersView(View):
+    http_method_names = ['get', 'post']
+
+    def get(self, request):
+        account_id = request.session.get(ACCOUNT_ID_KEY)
+        if not account_id:
+            return PermissionDenied()
+
+        account = TraktAccount.objects.get(uuid=account_id)
+        db_plex_account = account.plex_account
+
+        servers = []
+        if db_plex_account:
+            plex_account = MyPlexAccount(db_plex_account.username, token=db_plex_account.token)
+            devices = plex_account.devices()
+            servers = [{
+                'name': x.name,
+                'connections': x.connections,
+            } for x in devices if x.provides.lower() == 'server']
+
+        return JsonResponse(servers, safe=False)
+
+    def post(self, request):
+        account_id = request.session.get(ACCOUNT_ID_KEY)
+        if not account_id:
+            return PermissionDenied()
+
+        account = TraktAccount.objects.get(uuid=account_id)
+        db_plex_account = account.plex_account
+        if not db_plex_account:
+            return JsonResponse({'success': False})
+
+        value = request.POST.get('address')
+        if value:
+            validate = RegexValidator(r'^https?:\/\/[^:/]+(:\d+)?\/?$')
+            validate(value)
+
+        db_plex_account.server = value
+        db_plex_account.save()
+
+        return JsonResponse({'success': True})
+
+
 class IndexView(TemplateView):
     template_name = "index.html"
 
@@ -364,15 +409,5 @@ class IndexView(TemplateView):
             'link_form': link_form,
             'webhook_uri': build_webhook_uri(request, account.uuid),
         })
-
-        # db_plex_account = account.plex_account
-        # if db_plex_account:
-        #     plex_account = MyPlexAccount(db_plex_account.username, token=db_plex_account.token)
-        #     devices = plex_account.devices()
-        #     servers = [x for x in devices if x.provides.lower() == 'server']
-        #
-        #     context.update({
-        #         'servers': servers,
-        #     })
 
         return context

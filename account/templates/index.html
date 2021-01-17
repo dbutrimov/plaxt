@@ -69,6 +69,37 @@
     {{ block.super }}
 
     <script>
+        function saveServer() {
+            let input = $('#serverInput');
+            let button = $('#saveServerButton');
+
+            let value = input.val();
+            input.removeClass('is-valid');
+            input.removeClass('is-invalid');
+
+            input.attr('disabled', true);
+            button.attr('disabled', true);
+            button.html('<span id="saveServerSpinner" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>')
+
+            function handleResult(data) {
+                setTimeout(function () {
+                    input.attr('disabled', false);
+                    button.attr('disabled', false);
+                    button.html('Save');
+
+                    input.addClass(data && data.success ? 'is-valid' : 'is-invalid');
+                }, 600);
+            }
+
+            $.post("{% url 'servers' %}", {'address': value},
+                function (data) {
+                    handleResult(data);
+                }, "json")
+                .fail(function () {
+                    handleResult(null);
+                });
+        }
+
         $(document).ready(function () {
             $('#linkUsernameInput').bind('input', function (event) {
                 $(this).removeClass('is-invalid');
@@ -76,6 +107,50 @@
 
             $('#linkPasswordInput').bind('input', function (event) {
                 $(this).removeClass('is-invalid');
+            });
+
+
+            $('#serverDropdown').on('click', 'li a', function (event) {
+                $('#serverInput').val($(this).attr('data-value'));
+                $('#serverDropdown').hide();
+            });
+
+            let serverInput = $('#serverInput');
+            serverInput.bind('input', function (event) {
+                $(this).removeClass('is-invalid').removeClass('is-valid');
+            });
+            serverInput.click(function () {
+                $(this).removeClass('is-invalid').removeClass('is-valid');
+            });
+
+            serverInput.focus(function () {
+                $.getJSON("{% url 'servers' %}", function (data) {
+                    let serverDropdown = $('#serverDropdown');
+                    serverDropdown.empty();
+
+                    let count = 0;
+                    $.each(data, function (i, server) {
+                        $.each(server.connections, function (y, connection) {
+                            count++;
+
+                            let li = $('<li><a></a></li>');
+                            $("a", li)
+                                .attr('class', 'dropdown-item')
+                                .attr('href', 'javascript:void(0)')
+                                .attr('data-value', connection)
+                                .text(connection + " (" + server.name + ")");
+
+                            serverDropdown.append(li);
+                        });
+                    });
+
+                    if (count > 0) {
+                        serverDropdown.show();
+                    }
+                });
+            });
+            serverInput.focusout(function () {
+                $('#serverDropdown').delay(300).hide(0);
             });
 
 

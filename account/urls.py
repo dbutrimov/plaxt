@@ -9,6 +9,7 @@ urlpatterns = [
     path('delete/', views.DeleteView.as_view(), name='delete'),
     path('link/', views.LinkView.as_view(), name='link'),
     path('unlink/', views.UnlinkView.as_view(), name='unlink'),
+    re_path(r'^servers/?$', views.ServersView.as_view(), name='servers'),
     re_path(r'^authorize/?$', views.AuthorizeView.as_view(), name='authorize'),
     re_path(r'^webhook/?$', views.WebhookView.as_view(), name='webhook'),
 ]

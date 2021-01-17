@@ -21,7 +21,7 @@
         </div>
     </form>
 {% elif account.plex_account %}
-    <form class="row row-cols-lg-auto g-3 align-items-center"
+    <form class="row row-cols-lg-auto g-3 align-items-center mb-3"
           method="post" action="{% url 'unlink' %}">
         {% csrf_token %}
 
@@ -33,4 +33,13 @@
             <button type="submit" class="btn btn-sm btn-outline-danger">Unlink</button>
         </div>
     </form>
+
+    <div class="input-group input-group-sm mb-3">
+        <input id="serverInput" type="text" class="form-control" autocomplete="off"
+               value="{{ account.plex_account.server }}">
+        <ul id="serverDropdown" class="dropdown-menu dropdown-menu-start"></ul>
+        <button id="saveServerButton" class="btn btn-outline-secondary" type="button" onclick="saveServer();">
+            Save
+        </button>
+    </div>
 {% endif %}
