@@ -26,7 +26,7 @@ logging_handlers = {
     'console': {
         'class': 'logging.StreamHandler',
         'stream': sys.stdout,
-        'formatter': 'console',
+        'formatter': 'simple',
     },
 }
 
@@ -37,25 +37,24 @@ if log_filename:
         'filename': log_filename,
         'maxBytes': 1048576,  # 1MB
         'backupCount': 5,
-        'formatter': 'file',
+        'formatter': 'default',
     }
 
-log_level = env.str('LOG_LEVEL', default='WARNING')
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
-        'console': {
+        'simple': {
             'format': "%(levelname)-8s %(name)-24s %(message)s",
         },
-        'file': {
+        'default': {
             'format': "%(asctime)-24s %(levelname)-8s %(name)-24s %(message)s",
         },
     },
     'handlers': logging_handlers,
     'root': {
         'handlers': logging_handlers.keys(),
-        'level': log_level,
+        'level': env.str('LOG_LEVEL', default='INFO'),
     },
 }
 
@@ -69,6 +68,7 @@ INSTALLED_APPS += [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_celery_results',
     'account',
 ]
 
@@ -132,3 +132,24 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 # STATICFILES_DIRS = [
 #     os.path.join(BASE_DIR, "static"),
 # ]
+
+
+# Celery Configuration Options
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60
+
+CELERY_BROKER_URL = 'amqp://guest@localhost'
+
+#: Only add pickle to this list if your broker is secured
+#: from unwanted access (see userguide/security.html)
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_RESULT_BACKEND = 'django-db'  # 'db+sqlite:///results.sqlite'
+CELERY_TASK_SERIALIZER = 'json'
+
+CELERY_BEAT_SCHEDULE = {
+    'sync': {
+        'task': 'account.tasks.sync',
+        'schedule': 30.0,
+    },
+}

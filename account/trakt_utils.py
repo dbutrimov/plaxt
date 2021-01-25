@@ -15,6 +15,16 @@ def parse_media_id(guid: str):
     return media_key, media_id
 
 
+def parse_ids(guid: str):
+    media_key, media_id = parse_media_id(guid)
+    if not media_key or not media_id:
+        return None
+
+    return {
+        media_key: media_id,
+    }
+
+
 def find_ids(metadata, key='guid'):
     guid = metadata.get(key)
     if not guid:
