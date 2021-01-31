@@ -3,6 +3,7 @@
         {% csrf_token %}
         <div class="input-group input-group-sm">
             <input id="serverInput" type="text" class="form-control" autocomplete="off"
+                   placeholder="http://myplexserver:32400"
                    value="{{ plex_account.server.connection|default:"" }}">
             <ul id="serverDropdown" class="dropdown-menu dropdown-menu-start"></ul>
             <button id="saveServerButton" class="btn btn-outline-secondary" type="button" onclick="saveServer();">
