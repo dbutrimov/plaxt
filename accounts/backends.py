@@ -8,12 +8,17 @@ from common.models import TraktAccount, TraktAuth
 
 class TraktBackend(BaseBackend):
     def authenticate(self, request, auth_code=None):
-        auth_response = Trakt['oauth'].token_exchange(auth_code, utils.build_trakt_redirect_uri(request))
+        auth_response = Trakt['oauth'].token_exchange(
+            auth_code,
+            utils.build_trakt_redirect_uri(request),
+            exceptions=True,
+        )
+
         if not auth_response:
             return None
 
         with Trakt.configuration.defaults.oauth.from_response(auth_response):
-            user_settings = Trakt['users/settings'].get()
+            user_settings = Trakt['users/settings'].get(exceptions=True)
             user = user_settings['user']
             user_id = user['ids']['uuid']
             username = user['username']

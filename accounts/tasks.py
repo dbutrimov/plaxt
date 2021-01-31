@@ -103,8 +103,8 @@ def sync_account(account):
     }
 
     with authentication:
-        # result = Trakt['sync/history'].add(items)
-        history = list(Trakt['sync/history'].get(start_at=min_date))
+        # result = Trakt['sync/history'].add(items, exceptions=True)
+        history = list(Trakt['sync/history'].get(start_at=min_date, exceptions=True))
         result = [x.to_dict() for x in history]
 
     return {

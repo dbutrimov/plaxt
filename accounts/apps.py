@@ -28,7 +28,7 @@ class AccountsConfig(AppConfig):
 
         from common.models import TraktAccount
 
-        account = TraktAccount.objects.get(uuid=username)
-        auth = account.auth
-        auth.from_response(authorization)
-        auth.save()
+        trakt_account = TraktAccount.objects.get(uuid=username)
+        trakt_auth = trakt_account.auth
+        trakt_auth.from_response(authorization)
+        trakt_auth.save()

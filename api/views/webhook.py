@@ -42,10 +42,13 @@ class WebhookView(APIView):
 
         if len(movies) > 0 or len(shows) > 0:
             with utils.authenticate_trakt(user):
-                return Trakt['sync/ratings'].add({
-                    'movies': movies,
-                    'shows': shows,
-                })
+                return Trakt['sync/ratings'].add(
+                    {
+                        'movies': movies,
+                        'shows': shows,
+                    },
+                    exceptions=True,
+                )
 
         return None
 
@@ -58,6 +61,7 @@ class WebhookView(APIView):
                     action=action,
                     movie=movie,
                     progress=progress,
+                    exceptions=True,
                 )
 
         episode = utils.find_episode(metadata)
@@ -69,6 +73,7 @@ class WebhookView(APIView):
                     show=show,
                     episode=episode,
                     progress=progress,
+                    exceptions=True,
                 )
 
         return None
@@ -118,11 +123,7 @@ class WebhookView(APIView):
         uuid = request.GET['id']
         payload = json.loads(request.data['payload'])
 
-        try:
-            trakt_account = TraktAccount.objects.get(uuid=uuid)
-        except TraktAccount.DoesNotExist:
-            raise ParseError()
-
+        trakt_account = TraktAccount.objects.get(uuid=uuid)
         user = trakt_account.user
 
         try:
