@@ -10,5 +10,4 @@ urlpatterns = [
     path('link/', views.LinkView.as_view(), name='link'),
     path('unlink/', views.UnlinkView.as_view(), name='unlink'),
     re_path(r'^authorize/?$', views.AuthorizeView.as_view(), name='authorize'),
-    re_path(r'^sync/?$', views.SyncView.as_view(), name='sync'),
 ]

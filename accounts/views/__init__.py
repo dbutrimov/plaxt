@@ -4,5 +4,4 @@ from accounts.views.index import *
 from accounts.views.link import *
 from accounts.views.login import *
 from accounts.views.logout import *
-from accounts.views.sync import *
 from accounts.views.unlink import *

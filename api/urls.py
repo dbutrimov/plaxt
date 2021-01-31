@@ -10,4 +10,5 @@ urlpatterns = [
     path('', include(router.urls)),
     re_path(r'^webhook/?$', views.WebhookView.as_view(), name='webhook'),
     re_path(r'^servers/?$', views.ServersView.as_view(), name='servers'),
+    re_path(r'^sync/?$', views.SyncView.as_view(), name='sync'),
 ]
