@@ -60,6 +60,7 @@
                     <div class="modal-footer">
                         <form action="{% url 'delete' %}" method="post">
                             {% csrf_token %}
+                            <input type="hidden" id="confirmAccountDeleteText" value="{{ user.username }}" />
                             <button id="confirmAccountDeleteButton" type="submit" class="btn btn-danger" disabled>
                                 Delete this account
                             </button>
@@ -190,8 +191,8 @@
                 });
 
                 $('#confirmAccountDeleteInput').bind('input', function (event) {
-                    $('#confirmAccountDeleteButton')
-                        .attr('disabled', $(this).val() !== "{{ account.username }}");
+                    const val = $('#confirmAccountDeleteText').val();
+                    $('#confirmAccountDeleteButton').attr('disabled', $(this).val() !== val);
                 });
             }
 
