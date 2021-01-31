@@ -1,7 +1,5 @@
 from django.contrib.auth.models import User
 from django.db import models
-from django.db.models.signals import post_save, pre_save
-from django.dispatch import receiver
 
 
 class TraktAuth(models.Model):
@@ -43,13 +41,3 @@ class TraktAccount(models.Model):
     def save(self, *args, **kwargs):
         self.auth.save()
         super(TraktAccount, self).save(*args, **kwargs)
-
-
-# @receiver(pre_save, sender=TraktAccount)
-# def save_traktaccount_auth(sender, instance, **kwargs):
-#     instance.auth.save()
-
-
-# @receiver(post_save, sender=User)
-# def save_user_traktaccount(sender, instance, **kwargs):
-#     instance.traktaccount.save()

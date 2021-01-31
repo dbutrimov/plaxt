@@ -1,23 +1,21 @@
 import json
 from datetime import datetime
 
-from django.http import JsonResponse
-from django.utils.decorators import method_decorator
-from django.views import View
-from django.views.decorators.csrf import csrf_exempt
+from rest_framework.exceptions import ParseError
+from rest_framework.parsers import MultiPartParser
+from rest_framework.request import Request as RestRequest
+from rest_framework.response import Response as RestResponse
+from rest_framework.views import APIView
 from trakt import Trakt
 
-from accounts import logger
-from common import trakt_utils
-from common.models.trakt import TraktAccount
+from api import logger
+from common import utils
+from common.models import PlexAccount, TraktAccount
 
 
-@method_decorator(csrf_exempt, name='dispatch')
-class WebhookView(View):
-    http_method_names = ['post']
-
+class WebhookView(APIView):
     @staticmethod
-    def handle_rating(metadata, account_id):
+    def handle_rating(metadata, user):
         media_type = metadata['type']
 
         rating = metadata['userRating']
@@ -30,20 +28,20 @@ class WebhookView(View):
 
         movies = []
         if media_type == 'movie':
-            movie = trakt_utils.find_movie(metadata)
+            movie = utils.find_movie(metadata)
             movie['rating'] = rating
             movie['rated_at'] = rated_at
             movies.append(movie)
 
         shows = []
         if media_type == 'show':
-            show = trakt_utils.find_show(metadata)
+            show = utils.find_show(metadata)
             show['rating'] = rating
             show['rated_at'] = rated_at
             shows.append(show)
 
         if len(movies) > 0 or len(shows) > 0:
-            with trakt_utils.authenticate_trakt(account_id):
+            with utils.authenticate_trakt(user):
                 return Trakt['sync/ratings'].add({
                     'movies': movies,
                     'shows': shows,
@@ -52,20 +50,20 @@ class WebhookView(View):
         return None
 
     @staticmethod
-    def handle_scrobble(metadata, action, progress, account_id):
-        movie = trakt_utils.find_movie(metadata)
+    def handle_scrobble(metadata, action, progress, user):
+        movie = utils.find_movie(metadata)
         if movie:
-            with trakt_utils.authenticate_trakt(account_id):
+            with utils.authenticate_trakt(user):
                 return Trakt['scrobble'].action(
                     action=action,
                     movie=movie,
                     progress=progress,
                 )
 
-        episode = trakt_utils.find_episode(metadata)
+        episode = utils.find_episode(metadata)
         if episode:
-            with trakt_utils.authenticate_trakt(account_id):
-                show = trakt_utils.find_show(metadata)
+            with utils.authenticate_trakt(user):
+                show = utils.find_show(metadata)
                 return Trakt['scrobble'].action(
                     action=action,
                     show=show,
@@ -91,7 +89,7 @@ class WebhookView(View):
 
         return None
 
-    def handle_payload(self, payload, account_id):
+    def handle_payload(self, payload, user):
         event = payload['event']
         metadata = payload['Metadata']
         media_type = metadata['type']
@@ -104,31 +102,43 @@ class WebhookView(View):
             }))
 
         if event == 'media.rate':
-            return self.handle_rating(metadata, account_id)
+            return self.handle_rating(metadata, user)
 
         scrobble_action, scrobble_progress = self.find_scrobble_action(event)
         if scrobble_action:
-            return self.handle_scrobble(metadata, scrobble_action, scrobble_progress, account_id)
+            return self.handle_scrobble(metadata, scrobble_action, scrobble_progress, user)
 
         return None
 
-    _REJECTED = {'status': 'rejected'}
+    parser_classes = [MultiPartParser]
+    authentication_classes = []
+    permission_classes = []
 
-    def post(self, request):
-        account_id = request.GET['id']
-        payload = json.loads(request.POST['payload'])
+    def post(self, request: RestRequest):
+        uuid = request.GET['id']
+        payload = json.loads(request.data['payload'])
 
-        account = TraktAccount.objects.get(uuid=account_id)
-        plex_account = account.plex_account
+        try:
+            trakt_account = TraktAccount.objects.get(uuid=uuid)
+        except TraktAccount.DoesNotExist:
+            raise ParseError()
+
+        user = trakt_account.user
+
+        try:
+            plex_account = user.plexaccount
+        except PlexAccount.DoesNotExist:
+            plex_account = None
+
         if plex_account:
             account_metadata = payload['Account']
             plex_username = account_metadata['title']
             if plex_account.username.lower() != plex_username.lower():
-                result = self._REJECTED
+                result = {'status': 'rejected'}
                 logger.info('result: {0}'.format(result))
-                return JsonResponse(result)
+                return RestResponse(result)
 
-        result = self.handle_payload(payload, account_id) or self._REJECTED
+        result = self.handle_payload(payload, user) or {'status': 'rejected'}
         logger.info('result: {0}'.format(result))
 
-        return JsonResponse(result)
+        return RestResponse(result)

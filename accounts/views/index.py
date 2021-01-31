@@ -2,7 +2,7 @@ from django.shortcuts import redirect
 from django.views.generic import TemplateView
 
 from accounts.forms import LinkForm
-from common.models.plex import PlexAccount
+from common.models import PlexAccount
 from plaxt import settings
 
 
@@ -11,7 +11,7 @@ class IndexView(TemplateView):
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return redirect(f'{settings.LOGIN_URL}?next={request.path}')
+            return redirect(settings.LOGIN_URL)
 
         return super().dispatch(request, *args, **kwargs)
 

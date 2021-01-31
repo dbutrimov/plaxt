@@ -26,7 +26,7 @@ class AccountsConfig(AppConfig):
         if not username:
             raise Exception('username is not defined')
 
-        from common.models.trakt import TraktAccount
+        from common.models import TraktAccount
 
         account = TraktAccount.objects.get(uuid=username)
         auth = account.auth

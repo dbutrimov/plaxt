@@ -2,13 +2,13 @@ from django.contrib.auth.backends import BaseBackend
 from django.contrib.auth.models import User
 from trakt import Trakt
 
-from common import trakt_utils
-from common.models.trakt import TraktAccount, TraktAuth
+from common import utils
+from common.models import TraktAccount, TraktAuth
 
 
 class TraktBackend(BaseBackend):
     def authenticate(self, request, auth_code=None):
-        auth_response = Trakt['oauth'].token_exchange(auth_code, trakt_utils.build_trakt_redirect_uri(request))
+        auth_response = Trakt['oauth'].token_exchange(auth_code, utils.build_trakt_redirect_uri(request))
         if not auth_response:
             return None
 

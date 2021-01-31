@@ -8,10 +8,14 @@ from plaxt import settings
 class DeleteView(View):
     http_method_names = ['post']
 
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect(settings.LOGIN_URL)
+
+        return super().dispatch(request, *args, **kwargs)
+
     def post(self, request):
         user = request.user
-        if not user.is_authenticated:
-            return redirect(f'{settings.LOGIN_URL}?next={request.path}')
 
         logout(request)
         user.delete()

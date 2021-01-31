@@ -1,22 +1,16 @@
 from django.core.exceptions import PermissionDenied
 from django.core.validators import RegexValidator
-from django.http import JsonResponse
-from django.utils.decorators import method_decorator
-from django.views import View
-from django.views.decorators.csrf import csrf_exempt
 from plexapi.myplex import MyPlexAccount
+from rest_framework.request import Request as RestRequest
+from rest_framework.response import Response as RestResponse
+from rest_framework.views import APIView
 
-from common.models.plex import PlexAccount, PlexServer
+from common.models import PlexAccount, PlexServer
 
 
-@method_decorator(csrf_exempt, name='dispatch')
-class ServersView(View):
-    http_method_names = ['get', 'post']
-
-    def get(self, request):
+class ServersView(APIView):
+    def get(self, request: RestRequest):
         user = request.user
-        if not user.is_authenticated:
-            return PermissionDenied()
 
         try:
             plex_account = user.plexaccount
@@ -32,12 +26,10 @@ class ServersView(View):
                 'connections': x.connections,
             } for x in devices if x.provides.lower() == 'server']
 
-        return JsonResponse(servers, safe=False)
+        return RestResponse(servers)
 
-    def post(self, request):
+    def put(self, request: RestRequest):
         user = request.user
-        if not user.is_authenticated:
-            return PermissionDenied()
 
         try:
             plex_account = user.plexaccount
@@ -47,7 +39,7 @@ class ServersView(View):
         if not plex_account:
             return PermissionDenied()
 
-        connection = request.POST.get('address')
+        connection = request.data.get('connection')
         if connection:
             validate = RegexValidator(r'^https?:\/\/[^:/]+(:\d+)?\/?$')
             validate(connection)
@@ -67,4 +59,4 @@ class ServersView(View):
                 plex_server.connection = connection
                 plex_server.save()
 
-        return JsonResponse({'success': True})
+        return RestResponse({'success': True})

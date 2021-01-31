@@ -3,7 +3,7 @@ from django.shortcuts import redirect
 from django.views.generic import TemplateView
 
 from accounts import settings
-from common import trakt_utils
+from common import utils
 
 
 class LoginView(TemplateView):
@@ -24,7 +24,7 @@ class LoginView(TemplateView):
         context.update({
             'action': 'https://trakt.tv/oauth/authorize',
             'client_id': settings.TRAKT_CLIENT,
-            'redirect_uri': trakt_utils.build_trakt_redirect_uri(request),
+            'redirect_uri': utils.build_trakt_redirect_uri(request),
             'response_type': 'code',
             'state': csrf_token,
         })

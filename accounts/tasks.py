@@ -5,8 +5,8 @@ from celery import shared_task
 from plexapi.server import PlexServer
 from trakt import Trakt
 
-from common import trakt_utils
-from common.models.trakt import TraktAccount
+from common import utils
+from common.models import TraktAccount
 
 # logger = get_task_logger(__name__)
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ def sync_account(account):
                         'watched_at': watched_at.isoformat(),
                         'title': item.title,
                         'year': item.year,
-                        'ids': trakt_utils.parse_ids(item.guid),
+                        'ids': utils.parse_ids(item.guid),
                     }
                     movies[movie_key] = movie
 
@@ -63,7 +63,7 @@ def sync_account(account):
                     show = {
                         'title': show_item.title,
                         'year': show_item.year,
-                        'ids': trakt_utils.parse_ids(show_item.guid),
+                        'ids': utils.parse_ids(show_item.guid),
                         'seasons': list(),
                     }
                     shows[show_key] = show

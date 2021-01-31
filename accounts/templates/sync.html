@@ -1,6 +1,7 @@
 {% with plex_account=user.plexaccount %}
     {% if plex_account %}
         <div class="input-group input-group-sm">
+            {% csrf_token %}
             <input id="serverInput" type="text" class="form-control" autocomplete="off"
                    value="{{ plex_account.server.connection|default:"" }}">
             <ul id="serverDropdown" class="dropdown-menu dropdown-menu-start"></ul>
