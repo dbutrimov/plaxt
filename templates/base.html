@@ -21,9 +21,9 @@
             PLAXT
         </a>
 
-        {% if account %}
+        {% if user.is_authenticated %}
             <form method="post" action="{% url 'logout' %}">
-                <span class="navbar-text me-3">Hello, <a href="https://trakt.tv/users/{{ account.username }}" target="_blank" rel="noopener noreferrer">{{ account.username }}</a>!</span>
+                <span class="navbar-text me-3">Hello, <a href="https://trakt.tv/users/{{ user.username }}" target="_blank" rel="noopener noreferrer">{{ user.username }}</a>!</span>
                 {% csrf_token %}
                 <button class="btn btn-sm btn-outline-light" type="submit">Logout</button>
             </form>

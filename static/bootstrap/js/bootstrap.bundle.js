@@ -2192,7 +2192,7 @@
   }
 
   // Returns the layout rect of an element relative to its offsetParent. Layout
-  // means it doesn't take into account transforms.
+  // means it doesn't take into accounts transforms.
   function getLayoutRect(element) {
     return {
       x: element.offsetLeft,
@@ -3385,7 +3385,7 @@
     }
   }
 
-  // Composite means it takes into account transforms as well as layout.
+  // Composite means it takes into accounts transforms as well as layout.
 
   function getCompositeRect(elementOrVirtualElement, offsetParent, isFixed) {
     if (isFixed === void 0) {

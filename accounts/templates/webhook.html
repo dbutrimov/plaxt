@@ -1,0 +1,35 @@
+{% load webhook %}
+
+<ol>
+    <li>
+        <a href="https://app.plex.tv/desktop#!/settings/webhooks" target="_blank" rel="noopener noreferrer">Sign in</a> to your Plex Media Server and go to the <a href="https://app.plex.tv/desktop#!/settings/webhooks" target="_blank" rel="noopener noreferrer">Webhooks settings</a>.
+    </li>
+    <li>
+        Copy the URL
+        <div class="input-group input-group-sm mb-1 mt-1">
+            <input id="copyWebhookInput" type="text" class="form-control" value="{{ request|webhook_uri }}"
+                   aria-describedby="button-addon2" readonly>
+            <button id="copyWebhookButton" class="btn btn-outline-secondary" type="button"
+                    data-toggle="tooltip" data-placement="button"
+                    title="Copy to Clipboard">
+                Copy
+            </button>
+        </div>
+    </li>
+    <li>
+        Back in <i>Plex Media Server</i>, click <b>Add Webhook</b>, paste in the URL, and click <b>Save Changes</b>.
+    </li>
+    <li>
+        Still in your <i>Plex Media Server</i> settings, we need to make sure a few options are enabled.
+        <ol>
+            <li>Go to <b>General</b>, and make sure <b>Push Notifications</b> are enabled.</li>
+            <li>Go to <b>Network</b>, and make sure <b>Webhooks</b> are enabled.</li>
+        </ol>
+    </li>
+    <li>Enjoy!</li>
+</ol>
+
+<i class="bi bi-question-square"></i>
+<a href="https://support.plex.tv/articles/115002267687-webhooks/" target="_blank" rel="noopener noreferrer">
+    What is Webhooks?
+</a>
