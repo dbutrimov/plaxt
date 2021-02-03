@@ -1,5 +1,5 @@
 REST_FRAMEWORK = {
-    'EXCEPTION_HANDLER': 'api.utils.custom_exception_handler',
+    # 'EXCEPTION_HANDLER': 'api.utils.custom_exception_handler',
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
     ],

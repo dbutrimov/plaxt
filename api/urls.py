@@ -4,11 +4,13 @@ from rest_framework import routers
 from . import views
 
 router = routers.DefaultRouter()
-# router.register(r'webhook', views.WebhookView, basename='Webhook')
+# router.register(r'tasks', views.TasksView, basename='task')
 
 urlpatterns = [
     path('', include(router.urls)),
     re_path(r'^webhook/?$', views.WebhookView.as_view(), name='webhook'),
     re_path(r'^servers/?$', views.ServersView.as_view(), name='servers'),
     re_path(r'^sync/?$', views.SyncView.as_view(), name='sync'),
+    re_path(r'^sync/status?$', views.SyncStatusView.as_view(), name='sync_status'),
+    # re_path(r'^tasks/?$', views.TasksView.as_view(), name='tasks'),
 ]

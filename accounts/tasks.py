@@ -1,16 +1,20 @@
-import logging
+import json
+import time
 from datetime import datetime, timedelta, timezone
 
-from celery import shared_task
+from celery import Task
+from celery.utils.log import get_task_logger
 from django.contrib.auth.models import User
+from django_celery_beat.models import PeriodicTask, IntervalSchedule
 from plexapi.server import PlexServer
 from trakt import Trakt
 from trakt.objects import Movie as TraktMovie, Episode as TraktEpisode
 
 from common import utils
+from common.models import PlexAccount
+from plaxt.celery import app
 
-# logger = get_task_logger(__name__)
-logger = logging.getLogger(__name__)
+logger = get_task_logger(__name__)
 
 
 def _fetch_plex(plex_account, min_date):
@@ -149,8 +153,12 @@ def _filter_items(source, second):
     return result
 
 
-def sync_account(user):
-    plex_account = user.plexaccount
+def sync_account(task: Task, user: User):
+    try:
+        plex_account = user.plexaccount
+    except PlexAccount.DoesNotExist:
+        plex_account = None
+
     if not plex_account:
         return {
             'detail': 'Reject: Plex was not linked',
@@ -161,6 +169,11 @@ def sync_account(user):
         return {
             'detail': 'Reject: Server was not setup',
         }
+
+    plex_server.sync_task_id = task.request.id
+    plex_server.save()
+
+    time.sleep(5)
 
     now = datetime.now(tz=timezone.utc)
     min_date = now - timedelta(days=60)
@@ -187,17 +200,59 @@ def sync_account(user):
     }
 
 
-@shared_task
-def sync():
-    result = {}
-    for user in User.objects.all():
-        try:
-            result[user.username] = sync_account(user)
-        except Exception as exc:
-            exc_type = type(exc)
-            result[user.username] = {
-                'type': f'{exc_type.__module__}.{exc_type.__name__}',
-                'detail': str(exc),
-            }
+@app.task(bind=True, name='sync_account')
+def sync_account_by_id(self: Task, uid):
+    user = User.objects.get(pk=uid)
+    return sync_account(self, user)
 
-    return result
+
+# @app.task
+# def sync():
+#     result = {}
+#     for user in User.objects.all():
+#         try:
+#             sleep(5)
+#             result[user.username] = sync_account(user)
+#         except Exception as exc:
+#             exc_type = type(exc)
+#             result[user.username] = {
+#                 'type': f'{exc_type.__module__}.{exc_type.__name__}',
+#                 'detail': str(exc),
+#             }
+#
+#     return result
+
+
+# @app.on_after_finalize.connect
+# def setup_periodic_tasks(sender, **kwargs):
+#     sender.add_periodic_task(10.0, sync.s())
+#     pass
+
+
+def schedule_sync_task(user):
+    task_name = f'sync_user_{user.pk}'
+
+    schedule, created = IntervalSchedule.objects.get_or_create(
+        every=10,
+        period=IntervalSchedule.SECONDS,
+    )
+
+    sync_task = PeriodicTask.objects.update_or_create(
+        task='sync_account',
+        name=task_name,
+        defaults=dict(
+            interval=schedule,
+            expire_seconds=60,  # If not run within 60 seconds, forget it; another one will be scheduled soon.
+            args=json.dumps((user.pk,)),
+        ),
+    )
+
+    try:
+        plex_account = user.plexaccount
+    except PlexAccount.DoesNotExist:
+        plex_account = None
+
+    plex_server = plex_account.server if plex_account else None
+
+    sync_task.enabled = plex_server is not None
+    sync_task.save()

@@ -67,8 +67,25 @@ function jquery() {
     return gulp.series(jquery_clean, gulp.parallel(jquery_javascript))
 }
 
+function moment() {
+    function moment_clean(cb) {
+        del.sync(['./static/moment'])
+        cb()
+    }
+
+    function moment_javascript() {
+        const files = [
+            './node_modules/moment/min/moment.min.*',
+        ]
+        return gulp.src(files).pipe(gulp.dest('./static/moment'))
+    }
+
+    return gulp.series(moment_clean, gulp.parallel(moment_javascript))
+}
+
 exports.default = gulp.series(
     bootstrap(),
     bootstrap_icons(),
     jquery(),
+    moment(),
 )

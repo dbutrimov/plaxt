@@ -77,6 +77,32 @@
     {{ block.super }}
 
     <script>
+        function updateSyncStatus() {
+            $.getJSON("{% url 'sync_status' %}")
+                .done((res) => {
+                    const taskStatus = res.status;
+                    if (taskStatus === 'PENDING') {
+                        $('#syncStatus').removeClass('visually-hidden');
+                        $('#lastSyncTime').addClass('visually-hidden');
+                    } else {
+                        $('#syncStatus').addClass('visually-hidden');
+                        $('#lastSyncTime').removeClass('visually-hidden');
+                    }
+
+                    let doneAt = res.done_at;
+                    if (doneAt) {
+                        $('#lastSyncTimeText').html(moment(new Date(doneAt)).format('lll'));
+                    }
+
+                    setTimeout(updateSyncStatus, 1000);
+                }).fail((err) => {
+                    console.log(err);
+                    $('#syncStatus').addClass('visually-hidden');
+                    $('#lastSyncTime').removeClass('visually-hidden');
+                });
+        }
+
+
         function getCookie(name) {
             let cookieValue = null;
             if (document.cookie && document.cookie !== '') {
@@ -95,8 +121,10 @@
         }
 
         function saveServer() {
-            let input = $('#serverInput');
-            let button = $('#saveServerButton');
+            const input = $('#serverInput');
+            const button = $('#saveServerButton');
+            const buttonSpinner = $('#saveServerSpinner');
+            const buttonText = $('#saveServerText');
 
             let value = input.val();
             input.removeClass('is-valid');
@@ -104,15 +132,17 @@
 
             input.attr('disabled', true);
             button.attr('disabled', true);
-            button.html('<span id="saveServerSpinner" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>')
+            buttonSpinner.removeClass('visually-hidden');
+            buttonText.addClass('visually-hidden');
 
-            function handleResult(data) {
+            function handleResult(res) {
                 setTimeout(function () {
                     input.attr('disabled', false);
                     button.attr('disabled', false);
-                    button.html('Save');
+                    buttonSpinner.addClass('visually-hidden');
+                    buttonText.removeClass('visually-hidden');
 
-                    input.addClass(data && data.success ? 'is-valid' : 'is-invalid');
+                    input.addClass(res && res.success ? 'is-valid' : 'is-invalid');
                 }, 600);
             }
 
@@ -124,12 +154,14 @@
                 data: JSON.stringify({'connection': value}),
                 contentType: "application/json",
                 success: handleResult,
-            }).fail(function () {
+            }).fail((err) => {
                 handleResult(null);
             });
         }
 
         $(document).ready(function () {
+            updateSyncStatus();
+
             $('#linkUsernameInput').bind('input', function (event) {
                 $(this).removeClass('is-invalid');
             });

@@ -5,6 +5,7 @@ from rest_framework.request import Request as RestRequest
 from rest_framework.response import Response as RestResponse
 from rest_framework.views import APIView
 
+from accounts.tasks import schedule_sync_task, logger
 from common.models import PlexAccount, PlexServer
 
 
@@ -58,5 +59,10 @@ class ServersView(APIView):
             else:
                 plex_server.connection = connection
                 plex_server.save()
+
+        try:
+            schedule_sync_task(user)
+        except Exception as exc:
+            logger.error(exc)
 
         return RestResponse({'success': True})

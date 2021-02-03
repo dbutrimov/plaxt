@@ -7,13 +7,21 @@
                    value="{{ plex_account.server.connection|default:"" }}">
             <ul id="serverDropdown" class="dropdown-menu dropdown-menu-start"></ul>
             <button id="saveServerButton" class="btn btn-outline-secondary" type="button" onclick="saveServer();">
-                Save
+                <span id="saveServerSpinner" class="spinner-border spinner-border-sm visually-hidden"
+                      role="status" aria-hidden="true"></span>
+                <span id="saveServerText">Save</span>
             </button>
         </div>
 
         {% with plex_server=plex_account.server %}
             {% if plex_server %}
-                <span class="text-secondary">
+                <div id="syncStatus" class="text-secondary visually-hidden">
+                    <small>
+                        <span class="spinner-grow spinner-grow-sm me-1" role="status" aria-hidden="true"></span>
+                        <span>Syncing...</span>
+                    </small>
+                </div>
+                <span id="lastSyncTime" class="text-secondary">
                     <small>Last sync at: <i><span id="lastSyncTimeText">{{ plex_server.sync_at|default:"never" }}</span></i></small>
                 </span>
             {% endif %}

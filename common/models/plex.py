@@ -4,6 +4,7 @@ from django.db import models
 
 class PlexServer(models.Model):
     connection = models.CharField(max_length=128)
+    sync_task_id = models.CharField(max_length=128, null=True, db_index=True)
     sync_at = models.DateTimeField(null=True)
 
 
