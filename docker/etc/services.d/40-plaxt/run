@@ -1,0 +1,4 @@
+#!/usr/bin/with-contenv bash
+
+cd /app
+s6-setuidgid abc python3 manage.py runserver 0.0.0.0:8000

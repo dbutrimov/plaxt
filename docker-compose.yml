@@ -1,0 +1,16 @@
+version: '2'
+
+services:
+  rabbitmq:
+    image: rabbitmq:latest
+
+  plaxt:
+    build: .
+    environment:
+      - ENV_FILE=/config/.env
+    volumes:
+      - ~/.config/plaxt:/config
+    ports:
+      - 8000:8000
+    depends_on:
+      - rabbitmq
