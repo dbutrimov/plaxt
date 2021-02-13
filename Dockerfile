@@ -31,7 +31,7 @@ RUN \
         /tmp/*
 
 # add local files
-ADD docker/ /
+ADD root/ /
 
 # ports and volumes
 EXPOSE 8000/tcp
