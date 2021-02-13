@@ -7,7 +7,7 @@ services:
   plaxt:
     build: .
     environment:
-      - ENV_FILE=/config/.env
+      - ENV_PATH=/config/.env
     volumes:
       - ~/.config/plaxt:/config
     ports:
