@@ -2,4 +2,4 @@
 
 cd /app
 s6-setuidgid abc \
-    celery -A plaxt beat
+    python3 manage.py migrate
