@@ -6,7 +6,9 @@ from celery import Task
 from celery.utils.log import get_task_logger
 from django.contrib.auth.models import User
 from django_celery_beat.models import PeriodicTask, IntervalSchedule
+from plexapi.exceptions import Unsupported
 from plexapi.server import PlexServer
+from plexapi.video import Movie as PlexMovie, Episode as PlexEpisode
 from trakt import Trakt
 from trakt.objects import Movie as TraktMovie, Episode as TraktEpisode
 
@@ -15,6 +17,8 @@ from common.models import PlexAccount
 from plaxt.celery import app
 
 logger = get_task_logger(__name__)
+
+ITEMS_LIMIT = 1000
 
 
 def _fetch_plex(plex_account, min_date):
@@ -28,9 +32,13 @@ def _fetch_plex(plex_account, min_date):
     plex = PlexServer(plex_server.connection, plex_account.token)
     sections = plex.library.sections()
     for section in sections:
-        history = section.history(mindate=min_date)
+        history = section.history(mindate=min_date, maxresults=ITEMS_LIMIT)
         for item in history:
-            item.reload()
+            try:
+                item.reload()
+            except Unsupported as e:
+                logger.warning(f'{item}: {e}')
+                continue
 
             is_watched = item.isWatched
             if not is_watched:
@@ -38,7 +46,7 @@ def _fetch_plex(plex_account, min_date):
 
             watched_at = item.lastViewedAt.astimezone(timezone.utc)
 
-            if item.type == 'movie':
+            if item.type == PlexMovie.TYPE:
                 result.append({
                     'type': item.type,
                     'ids': utils.parse_ids(item.guid),
@@ -49,7 +57,7 @@ def _fetch_plex(plex_account, min_date):
 
                 continue
 
-            if item.type == 'episode':
+            if item.type == PlexEpisode.TYPE:
                 show_key = item.grandparentKey
                 if show_key in shows_cache:
                     show = shows_cache[show_key]
@@ -88,7 +96,7 @@ def _fetch_trakt(trakt_account, min_date):
     result = list()
     with authentication:
         # result = Trakt['sync/history'].add(items, exceptions=True)
-        history = list(Trakt['sync/history'].get(start_at=min_date, exceptions=True))
+        history = list(Trakt['sync/history'].get(start_at=min_date, per_page=ITEMS_LIMIT, exceptions=True))
         for history_item in history:
             watched_at = history_item.watched_at.astimezone(timezone.utc)
 
@@ -126,14 +134,14 @@ def _fetch_trakt(trakt_account, min_date):
 
 
 def _filter_items(source, second):
-    watch_troubleshoot = 1800  # 30 min
+    watch_troubleshoot = timedelta(hours=3)
 
     result = list()
 
     for item in source:
         item_type = item['type']
         if item_type == 'movie':
-            exists = any(abs((x['watched_at'] - item['watched_at']).total_seconds()) < watch_troubleshoot and
+            exists = any(abs((x['watched_at'] - item['watched_at'])) < watch_troubleshoot and
                          any(x['ids'].get(key, None) == val for key, val in item['ids'].items())
                          for x in second
                          if x['type'] == item_type)
@@ -141,7 +149,7 @@ def _filter_items(source, second):
                 result.append(item)
 
         if item_type == 'episode':
-            exists = any(abs((x['watched_at'] - item['watched_at']).total_seconds()) < watch_troubleshoot and
+            exists = any(abs((x['watched_at'] - item['watched_at'])) < watch_troubleshoot and
                          x['season'] == item['season'] and
                          x['number'] == item['number'] and
                          any(x['show']['ids'].get(key, None) == val for key, val in item['show']['ids'].items())
