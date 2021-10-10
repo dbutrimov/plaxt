@@ -3,12 +3,14 @@ from django.db import models
 
 
 class PlexServer(models.Model):
+    id = models.AutoField(primary_key=True)
     connection = models.CharField(max_length=128)
     sync_task_id = models.CharField(max_length=128, null=True, db_index=True)
     sync_at = models.DateTimeField(null=True)
 
 
 class PlexAccount(models.Model):
+    id = models.AutoField(primary_key=True)
     uuid = models.CharField(max_length=64, db_index=True)
     username = models.CharField(max_length=64, db_index=True)
     token = models.CharField(max_length=32)

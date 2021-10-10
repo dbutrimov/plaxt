@@ -36,11 +36,7 @@ def parse_media_id(guid: str):
         return None
 
     media_key = match.group(1)
-    if media_key.startswith('the'):
-        media_key = media_key[3:]
-
     media_id = match.group(2)
-
     return media_key, media_id
 
 
@@ -49,9 +45,19 @@ def parse_ids(guid: str):
     if not media_key or not media_id:
         return None
 
-    return {
+    result = {
         media_key: media_id,
     }
+
+    if media_key.startswith('the'):
+        media_key = media_key[3:]
+        result[media_key] = media_id
+
+    if media_key == 'moviedb':
+        media_key = 'tmdb'
+        result[media_key] = media_id
+
+    return result
 
 
 def find_ids(metadata, key='guid'):
@@ -59,13 +65,7 @@ def find_ids(metadata, key='guid'):
     if not guid:
         return None
 
-    media_key, media_id = parse_media_id(guid)
-    if not media_key or not media_id:
-        return None
-
-    return {
-        media_key: media_id,
-    }
+    return parse_ids(guid)
 
 
 def find_movie(metadata):

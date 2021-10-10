@@ -3,6 +3,7 @@ from django.db import models
 
 
 class TraktAuth(models.Model):
+    id = models.AutoField(primary_key=True)
     access_token = models.CharField(max_length=64)
     token_type = models.CharField(max_length=32)
     expires_in = models.IntegerField()
@@ -31,6 +32,7 @@ class TraktAuth(models.Model):
 
 
 class TraktAccount(models.Model):
+    id = models.AutoField(primary_key=True)
     uuid = models.CharField(max_length=64, unique=True, db_index=True)
     username = models.CharField(max_length=64, db_index=True)
     created_at = models.DateTimeField(auto_now=True)

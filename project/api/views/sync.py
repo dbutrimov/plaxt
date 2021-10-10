@@ -3,13 +3,14 @@ from rest_framework.request import Request as RestRequest
 from rest_framework.response import Response as RestResponse
 from rest_framework.views import APIView
 
+from accounts.tasks import sync_account_by_id
 from common.models import PlexAccount
 
 
 class SyncView(APIView):
-    def post(self, request: RestRequest):
-        # result = tasks.sync_account(request.user)
-        return RestResponse(None)
+    def get(self, request: RestRequest):
+        result = sync_account_by_id(request.user.id)
+        return RestResponse(result)
 
 
 class SyncStatusView(APIView):

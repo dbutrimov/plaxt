@@ -6,13 +6,9 @@ from celery import Task
 from celery.utils.log import get_task_logger
 from django.contrib.auth.models import User
 from django_celery_beat.models import PeriodicTask, IntervalSchedule
-from plexapi.exceptions import Unsupported
-from plexapi.server import PlexServer
-from plexapi.video import Movie as PlexMovie, Episode as PlexEpisode
-from trakt import Trakt
-from trakt.objects import Movie as TraktMovie, Episode as TraktEpisode
 
-from common import utils
+from accounts.adapters import PlexAdapter, TraktAdapter
+from api.models import Movie, Episode
 from common.models import PlexAccount
 from plaxt.celery import app
 
@@ -21,140 +17,27 @@ logger = get_task_logger(__name__)
 ITEMS_LIMIT = 1000
 
 
-def _fetch_plex(plex_account, min_date):
-    plex_server = plex_account.server
-    if not plex_server:
-        return None
-
-    shows_cache = dict()
-    result = list()
-
-    plex = PlexServer(plex_server.connection, plex_account.token)
-    sections = plex.library.sections()
-    for section in sections:
-        history = section.history(mindate=min_date, maxresults=ITEMS_LIMIT)
-        for item in history:
-            try:
-                item.reload()
-            except Unsupported as e:
-                logger.warning(f'{item}: {e}')
-                continue
-
-            is_watched = item.isWatched
-            if not is_watched:
-                continue
-
-            watched_at = item.lastViewedAt.astimezone(timezone.utc)
-
-            if item.type == PlexMovie.TYPE:
-                result.append({
-                    'type': item.type,
-                    'ids': utils.parse_ids(item.guid),
-                    'title': item.title,
-                    'year': item.year,
-                    'watched_at': watched_at,
-                })
-
-                continue
-
-            if item.type == PlexEpisode.TYPE:
-                show_key = item.grandparentKey
-                if show_key in shows_cache:
-                    show = shows_cache[show_key]
-                else:
-                    show_item = plex.library.fetchItem(show_key)
-                    show = {
-                        'ids': utils.parse_ids(show_item.guid),
-                        'title': show_item.title,
-                        'year': show_item.year,
-                    }
-                    shows_cache[show_key] = show
-
-                season = int(item.parentIndex)
-                number = int(item.index)
-                result.append({
-                    'type': item.type,
-                    'season': season,
-                    'number': number,
-                    'watched_at': watched_at,
-                    'show': show,
-                })
-
-                continue
-
-    return result
-
-
-def _fetch_trakt(trakt_account, min_date):
-    trakt_auth = trakt_account.auth
-    authentication = Trakt.configuration.defaults.oauth.from_response(
-        response=trakt_auth.to_response(),
-        refresh=True,
-        username=trakt_account.uuid,
-    )
-
-    result = list()
-    with authentication:
-        # result = Trakt['sync/history'].add(items, exceptions=True)
-        history = list(Trakt['sync/history'].get(start_at=min_date, per_page=ITEMS_LIMIT, exceptions=True))
-        for history_item in history:
-            watched_at = history_item.watched_at.astimezone(timezone.utc)
-
-            if isinstance(history_item, TraktMovie):
-                result.append({
-                    'type': 'movie',
-                    'ids': dict(history_item.keys),
-                    'title': history_item.title,
-                    'year': history_item.year,
-                    'watched_at': watched_at,
-                })
-
-                continue
-
-            if isinstance(history_item, TraktEpisode):
-                season, number = history_item.pk
-                show = history_item.show
-                result.append({
-                    'type': 'episode',
-                    'ids': dict([(key, value) for (key, value) in history_item.keys[1:]]),
-                    'season': season,
-                    'number': number,
-                    'title': history_item.title,
-                    'watched_at': watched_at,
-                    'show': {
-                        'ids': dict(show.keys),
-                        'title': show.title,
-                        'year': show.year,
-                    },
-                })
-
-                continue
-
-    return result
-
-
 def _filter_items(source, second):
     watch_troubleshoot = timedelta(hours=3)
 
     result = list()
 
     for item in source:
-        item_type = item['type']
-        if item_type == 'movie':
-            exists = any(abs((x['watched_at'] - item['watched_at'])) < watch_troubleshoot and
-                         any(x['ids'].get(key, None) == val for key, val in item['ids'].items())
+        if isinstance(item, Movie):
+            exists = any(abs((x.watched_at - item.watched_at)) < watch_troubleshoot and
+                         any(x.ids.get(key, None) == val for key, val in item.ids.items())
                          for x in second
-                         if x['type'] == item_type)
+                         if x.type == item.type)
             if not exists:
                 result.append(item)
 
-        if item_type == 'episode':
-            exists = any(abs((x['watched_at'] - item['watched_at'])) < watch_troubleshoot and
-                         x['season'] == item['season'] and
-                         x['number'] == item['number'] and
-                         any(x['show']['ids'].get(key, None) == val for key, val in item['show']['ids'].items())
+        if isinstance(item, Episode):
+            exists = any(abs((x.watched_at - item.watched_at)) < watch_troubleshoot and
+                         x.season == item.season and
+                         x.number == item.number and
+                         any(x.show.ids.get(key, None) == val for key, val in item.show.ids.items())
                          for x in second
-                         if x['type'] == item_type)
+                         if x.type == item.type)
             if not exists:
                 result.append(item)
 
@@ -181,23 +64,27 @@ def sync_account(task: Task, user: User):
     plex_server.sync_task_id = task.request.id
     plex_server.save()
 
-    time.sleep(5)
-
     now = datetime.now(tz=timezone.utc)
-    min_date = now - timedelta(days=60)
-    sync_at = plex_server.sync_at
+    min_date = now - timedelta(days=120)
+    sync_at = datetime(2020, 1, 1, tzinfo=timezone.utc)  # plex_server.sync_at
     if sync_at and sync_at > min_date:
         min_date = sync_at.astimezone(timezone.utc)
 
-    plex_fetch = _fetch_plex(plex_account, min_date)
+    plex_adapter = PlexAdapter(plex_account, min_date)
+    plex_adapter.items_limit = ITEMS_LIMIT
 
     trakt_account = user.traktaccount
-    trakt_fetch = _fetch_trakt(trakt_account, min_date)
+    trakt_adapter = TraktAdapter(trakt_account, min_date)
+    trakt_adapter.items_limit = ITEMS_LIMIT
+
+    plex_fetch = plex_adapter.fetch()
+    trakt_fetch = trakt_adapter.fetch()
 
     trakt_push = _filter_items(plex_fetch, trakt_fetch)
     plex_push = _filter_items(trakt_fetch, plex_fetch)
 
-    # todo: push here
+    plex_push = plex_adapter.push(plex_push)
+    trakt_push = trakt_adapter.push(trakt_push)
 
     plex_server.sync_at = now
     plex_server.save()
