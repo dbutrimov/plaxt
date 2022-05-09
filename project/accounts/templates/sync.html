@@ -24,7 +24,7 @@
                 <div id="lastSyncTime" class="text-secondary">
                     <small>
                         Last sync at: <i><span id="lastSyncTimeText">{{ plex_server.sync_at|default:"never" }}</span></i>
-                        <a class="ms-1" href="#">Sync now</a>
+                        <a class="ms-1" href="#sync" onclick="syncNow();">Sync now</a>
                     </small>
                 </div>
             {% endif %}

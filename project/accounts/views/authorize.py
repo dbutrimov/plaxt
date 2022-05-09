@@ -14,7 +14,7 @@ class AuthorizeView(View):
 
         csrf_token = csrf.get_token(request)
         request_csrf_token = csrf._sanitize_token(state)
-        if not csrf._does_token_match(request_csrf_token, csrf_token):
+        if not csrf._compare_masked_tokens(request_csrf_token, csrf_token):
             raise PermissionDenied()
 
         user = authenticate(request, auth_code=auth_code)

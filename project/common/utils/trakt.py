@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 
 from django.contrib.auth.models import User
 from django.http import HttpRequest
@@ -30,8 +31,8 @@ def build_webhook_uri(request: HttpRequest):
     return '{0}?id={1}'.format(request.build_absolute_uri('/api/webhook'), trakt_account.uuid)
 
 
-def parse_media_id(guid: str):
-    match = re.match(r'^.*\.([^.]*)://([^\\?]*).*$', guid, re.IGNORECASE | re.MULTILINE)
+def parse_media_id(guid: str) -> Optional[tuple[str, str]]:
+    match = re.match(r'^(?:[^.]+\.)?([^.]*)://([^\\?]*).*$', guid, re.IGNORECASE | re.MULTILINE)
     if not match:
         return None
 
@@ -40,7 +41,7 @@ def parse_media_id(guid: str):
     return media_key, media_id
 
 
-def parse_ids(guid: str):
+def parse_ids(guid: str) -> Optional[dict[str, str]]:
     media_key, media_id = parse_media_id(guid)
     if not media_key or not media_id:
         return None
@@ -49,18 +50,10 @@ def parse_ids(guid: str):
         media_key: media_id,
     }
 
-    if media_key.startswith('the'):
-        media_key = media_key[3:]
-        result[media_key] = media_id
-
-    if media_key == 'moviedb':
-        media_key = 'tmdb'
-        result[media_key] = media_id
-
     return result
 
 
-def find_ids(metadata, key='guid'):
+def find_ids(metadata, key='guid') -> Optional[dict[str, str]]:
     guid = metadata.get(key)
     if not guid:
         return None

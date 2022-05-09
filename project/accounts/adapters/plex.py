@@ -1,113 +1,206 @@
-from datetime import timezone
-from typing import List, Optional
+import logging
+from datetime import timezone, datetime
+from typing import List, Optional, Union, Any
 
-from plexapi.exceptions import Unsupported
-from plexapi.library import MovieSection, ShowSection
+from plexapi.exceptions import Unsupported, NotFound
+from plexapi.library import MovieSection, ShowSection, LibrarySection, Library as PlexLibrary
 from plexapi.server import PlexServer
-from plexapi.video import Movie as PlexMovie, Episode as PlexEpisode
+from plexapi.video import Movie as PlexMovie, Episode as PlexEpisode, Show as PlexShow
 
-from api.models import Media, Movie, Show, Episode
+from api.models import Media, Movie, Show, Episode, Season
 from common import utils
 from . import Adapter
 
+logger = logging.getLogger(__name__)
+
 
 class PlexAdapter(Adapter):
-    def __init__(self, plex_account, min_date):
-        self.plex_account = plex_account
-        self.min_date = min_date
-        self.items_limit = 1000
-
-    def fetch(self) -> Optional[List[Media]]:
-        plex_server = self.plex_account.server
-        if not plex_server:
-            return None
-
-        shows_cache = dict()
-        result = list()
-
-        plex = PlexServer(plex_server.connection, self.plex_account.token)
-        sections = plex.library.sections()
-        for section in sections:
-            history = section.history(mindate=self.min_date, maxresults=self.items_limit)
-            for item in history:
-                try:
-                    item.reload()
-                except Unsupported as e:
-                    # logger.warning(f'{item}: {e}')
-                    continue
-
-                is_watched = item.isWatched
-                if not is_watched:
-                    continue
-
-                watched_at = item.lastViewedAt.astimezone(timezone.utc)
-
-                if item.type == PlexMovie.TYPE:
-                    movie = Movie(
-                        ids=utils.parse_ids(item.guid),
-                        title=item.title,
-                        year=item.year,
-                        watched_at=watched_at,
-                    )
-
-                    result.append(movie)
-                    continue
-
-                if item.type == PlexEpisode.TYPE:
-                    show_key = item.grandparentKey
-                    if show_key in shows_cache:
-                        show = shows_cache[show_key]
-                    else:
-                        show_item = plex.library.fetchItem(show_key)
-
-                        show = Show(
-                            ids=utils.parse_ids(show_item.guid),
-                            title=show_item.title,
-                            year=show_item.year,
-                        )
-
-                        shows_cache[show_key] = show
-
-                    season = int(item.parentIndex)
-                    number = int(item.index)
-
-                    episode = Episode(
-                        season=season,
-                        number=number,
-                        watched_at=watched_at,
-                        show=show,
-                    )
-
-                    result.append(episode)
-                    continue
+    @staticmethod
+    def parse_ids(media: Union[PlexMovie, PlexShow, PlexEpisode]) -> dict[str, str]:
+        result = None  # utils.parse_ids(media.guid)
+        for guid in media.guids:
+            ids = utils.parse_ids(guid.id)
+            if result:
+                result.update(ids)
+            else:
+                result = ids
 
         return result
 
-    def push(self, items: List[Media]):
+    @staticmethod
+    def find_section_media(item: Union[Movie, Show], section: LibrarySection) -> Optional[Union[PlexMovie, PlexShow]]:
+        # find by ids
+        if item.ids:
+            for key, value in item.ids.items():
+                try:
+                    result = section.getGuid(f'{key}://{value}')
+                    if result:
+                        return result
+                except NotFound:
+                    continue
+
+        # find by title
+        try:
+            result = section.get(item.title)
+            if result:
+                return result
+        except NotFound:
+            pass
+
+        return None
+
+    @staticmethod
+    def find_library_media(item: Union[Movie, Show], library: PlexLibrary) -> Optional[Union[PlexMovie, PlexShow]]:
+        for section in library.sections():
+            if not (section.type == MovieSection.TYPE and item.type == Movie.TYPE) and \
+                    not (section.type == ShowSection.TYPE and item.type == Show.TYPE):
+                continue
+
+            result = PlexAdapter.find_section_media(item, section)
+            if result:
+                return result
+
+        return None
+
+    def __init__(self, plex_account):
+        self.plex_account = plex_account
+
+    def fetch(self, min_date: datetime = None, items_limit: int = 1000) -> Optional[List[Media]]:
         plex_server = self.plex_account.server
         if not plex_server:
             return None
 
+        result = list()
+        shows = dict()
+
         plex = PlexServer(plex_server.connection, self.plex_account.token)
-        sections = plex.library.sections()
+        history = plex.library.history(mindate=min_date, maxresults=items_limit)
+        for plex_item in history:
+            try:
+                plex_item.reload()
+            except Unsupported as e:
+                logger.warning(f'{plex_item}: {e}')
+                continue
 
-        # for item in items:
-        #     if isinstance(item, Movie):
-        #         for section in sections:
-        #             if section.type != MovieSection.TYPE:
-        #                 continue
-        #
-        #             plex_movie = section.get(item.title)
-        #             plex_movie.markWatched()
-        #
-        #     if isinstance(item, Episode):
-        #         for section in sections:
-        #             if section.type != ShowSection.TYPE:
-        #                 continue
-        #
-        #             plex_show = section.search(item.show.ids)
-        #             plex_episode = plex_show.episode(season=item.season, episode=item.number)
-        #             plex_episode.markWatched()
+            watched_at = plex_item.lastViewedAt.astimezone(timezone.utc)
 
-        # todo
-        return [item.to_dict() for item in items]
+            if isinstance(plex_item, PlexMovie):
+                movie = Movie(
+                    ids=PlexAdapter.parse_ids(plex_item),
+                    title=plex_item.originalTitle or plex_item.title,
+                    year=plex_item.year,
+                    watched_at=watched_at,
+                )
+
+                result.append(movie)
+                continue
+
+            if isinstance(plex_item, PlexEpisode):
+                show_key = plex_item.grandparentKey
+                show = shows.get(show_key)
+                if not show:
+                    plex_show = plex.library.fetchItem(show_key)
+                    show = Show(
+                        ids=PlexAdapter.parse_ids(plex_show),
+                        title=plex_show.originalTitle or plex_show.title,
+                        year=plex_show.year,
+                    )
+
+                    shows[show_key] = show
+                    result.append(show)
+
+                season = next((x for x in show.seasons if x.number == plex_item.seasonNumber), None)
+                if not season:
+                    season = Season(
+                        number=plex_item.seasonNumber,
+                    )
+
+                    show.seasons.append(season)
+
+                episode = Episode(
+                    ids=PlexAdapter.parse_ids(plex_item),
+                    title=plex_item.title or plex_item.seasonEpisode,
+                    number=plex_item.episodeNumber,
+                    watched_at=watched_at,
+                )
+
+                season.episodes.append(episode)
+                continue
+
+        return result
+
+    def push(self, items: List[Media]) -> Optional[Any]:
+        plex_server = self.plex_account.server
+        if not plex_server:
+            return {
+                'message': 'Plex server is not configured'
+            }
+
+        plex = PlexServer(plex_server.connection, self.plex_account.token)
+        plex_library = plex.library
+
+        added_movies = 0
+        added_episodes = 0
+        not_found = list()
+
+        for item in items:
+            if isinstance(item, Movie):
+                plex_movie = PlexAdapter.find_library_media(item, plex_library)
+                if not plex_movie:
+                    not_found.append(item.to_dict())
+                    continue
+
+                if not plex_movie.isWatched:
+                    plex_movie.markWatched()
+                    added_movies += 1
+
+                continue
+
+            if isinstance(item, Show):
+                plex_show = PlexAdapter.find_library_media(item, plex_library)
+                if not plex_show:
+                    not_found.append(item.to_dict())
+                    continue
+
+                not_found_seasons = list()
+                for season in item.seasons:
+                    not_found_episodes = list()
+                    for episode in season.episodes:
+                        try:
+                            plex_episode = plex_show.episode(season=season.number, episode=episode.number)
+                        except NotFound:
+                            not_found_episodes.append(episode)
+                            continue
+
+                        if not plex_episode.isWatched:
+                            plex_episode.markWatched()
+                            added_episodes += 1
+
+                    if len(not_found_episodes) > 0:
+                        not_found_seasons.append(
+                            Season(
+                                number=season.number,
+                                episodes=not_found_episodes,
+                            ))
+
+                if len(not_found_seasons) > 0:
+                    not_found_show = Show(
+                        ids=item.ids,
+                        title=item.title,
+                        year=item.year,
+                        seasons=not_found_seasons,
+                    )
+
+                    not_found.append(not_found_show.to_dict())
+
+                continue
+
+            not_found.append(item.to_dict())
+
+        return {
+            'added': {
+                'movies': added_movies,
+                'episodes': added_episodes,
+            },
+            'not_found': not_found,
+        }
