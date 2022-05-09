@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block page_content %}
+    {% if user.is_authenticated %}
+        <div class="m-5">
+            <h3 class="mb-5">What is next?</h3>
+
+            <div id="scrobble" class="container mb-5">
+                <h5><span class="badge bg-secondary me-1">Tip #1</span> How to enable the Plex Scrobbler.</h5>
+                <div class="container mt-3">
+                    {% include 'webhook.html' %}
+                </div>
+            </div>
+
+            <div id="link" class="container mb-5">
+                <h5><span class="badge bg-secondary me-1">Tip #2</span> Link your Plex account.</h5>
+                <div class="container mt-3">
+                    {% include 'link.html' %}
+                </div>
+            </div>
+
+            <div id="sync" class="container mb-5">
+                <h5><span class="badge bg-secondary me-1">Tip #3</span> Enable Plex Sync.</h5>
+                <div class="container mt-3">
+                    {% include 'sync.html' %}
+                </div>
+            </div>
+
+            <div class="container mb-5">
+                <h5 class="text-danger"><i class="bi bi-exclamation-octagon-fill me-1"></i> Danger Zone!</h5>
+                <div class="container mt-3">
+                    <p>Once you delete an account, there is no going back. Please be certain.</p>
+                    <button type="button" class="btn btn-danger"
+                            data-bs-toggle="modal" data-bs-target="#deleteAccountModal">
+                        Delete account
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="deleteAccountModal" tabindex="-1"
+             aria-labelledby="deleteAccountModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="deleteAccountModalLabel">Are you absolutely sure?</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+
+                    <div class="modal-body bg-warning">
+                        Unexpected bad things will happen if you don’t read this!
+                    </div>
+
+                    <div class="modal-body">
+                        <p>This action <b>cannot</b> be undone. This will permanently delete the <b>{{ user.username }}</b> account.</p>
+                        <p>Please type <b>{{ user.username }}</b> to confirm.</p>
+                        <input id="confirmAccountDeleteInput" type="text" class="form-control" />
+                    </div>
+
+                    <div class="modal-footer">
+                        <form action="{% url 'delete' %}" method="post">
+                            {% csrf_token %}
+                            <input type="hidden" id="confirmAccountDeleteText" value="{{ user.username }}" />
+                            <button id="confirmAccountDeleteButton" type="submit" class="btn btn-danger" disabled>
+                                Delete this account
+                            </button>
+                        </form>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}
+
+{% block javascript %}
+    {{ block.super }}
+
+    <script>
+        function updateSyncStatus() {
+            $.getJSON("{% url 'sync_status' %}")
+                .done((res) => {
+                    const taskStatus = res.status;
+                    if (taskStatus === 'PENDING') {
+                        $('#syncStatus').removeClass('visually-hidden');
+                        $('#lastSyncTime').addClass('visually-hidden');
+                    } else {
+                        $('#syncStatus').addClass('visually-hidden');
+                        $('#lastSyncTime').removeClass('visually-hidden');
+                    }
+
+                    let doneAt = res.done_at;
+                    if (doneAt) {
+                        $('#lastSyncTimeText').html(moment(new Date(doneAt)).format('lll'));
+                    }
+
+                    setTimeout(updateSyncStatus, 1000);
+                }).fail((err) => {
+                    console.log(err);
+                    $('#syncStatus').addClass('visually-hidden');
+                    $('#lastSyncTime').removeClass('visually-hidden');
+                });
+        }
+
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    // Does this cookie string begin with the name we want?
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+
+            return cookieValue;
+        }
+
+        function saveServer() {
+            const input = $('#serverInput');
+            const button = $('#saveServerButton');
+            const buttonSpinner = $('#saveServerSpinner');
+            const buttonText = $('#saveServerText');
+
+            let value = input.val();
+            input.removeClass('is-valid');
+            input.removeClass('is-invalid');
+
+            input.attr('disabled', true);
+            button.attr('disabled', true);
+            buttonSpinner.removeClass('visually-hidden');
+            buttonText.addClass('visually-hidden');
+
+            function handleResult(res) {
+                setTimeout(function () {
+                    input.attr('disabled', false);
+                    button.attr('disabled', false);
+                    buttonSpinner.addClass('visually-hidden');
+                    buttonText.removeClass('visually-hidden');
+
+                    input.addClass(res && res.success ? 'is-valid' : 'is-invalid');
+                }, 600);
+            }
+
+            const csrftoken = getCookie('csrftoken');
+            $.ajax({
+                type: "PUT",
+                url: "{% url 'servers' %}",
+                headers: {'X-CSRFToken': csrftoken},
+                data: JSON.stringify({'connection': value}),
+                contentType: "application/json",
+                success: handleResult,
+            }).fail((err) => {
+                handleResult(null);
+            });
+        }
+
+        function syncNow() {
+            $('#syncStatus').removeClass('visually-hidden');
+            $('#lastSyncTime').addClass('visually-hidden');
+
+            const csrftoken = getCookie('csrftoken');
+            $.ajax({
+                type: "POST",
+                url: "{% url 'sync' %}",
+                headers: {'X-CSRFToken': csrftoken},
+                contentType: "application/json",
+                success: (res) => {
+                    console.warn(res);
+                },
+            }).fail((err) => {
+                console.warn(err);
+            });
+        }
+
+        $(document).ready(function () {
+            updateSyncStatus();
+
+            $('#linkUsernameInput').bind('input', function (event) {
+                $(this).removeClass('is-invalid');
+            });
+
+            $('#linkPasswordInput').bind('input', function (event) {
+                $(this).removeClass('is-invalid');
+            });
+
+
+            $('#serverDropdown').on('click', 'li a', function (event) {
+                $('#serverInput').val($(this).attr('data-value'));
+                $('#serverDropdown').hide();
+            });
+
+            let serverInput = $('#serverInput');
+            serverInput.bind('input', function (event) {
+                $(this).removeClass('is-invalid').removeClass('is-valid');
+            });
+            serverInput.click(function () {
+                $(this).removeClass('is-invalid').removeClass('is-valid');
+            });
+
+            serverInput.focus(function () {
+                $.getJSON("{% url 'servers' %}", function (data) {
+                    let serverDropdown = $('#serverDropdown');
+                    serverDropdown.empty();
+
+                    let count = 0;
+                    $.each(data, function (i, server) {
+                        $.each(server.connections, function (y, connection) {
+                            count++;
+
+                            let li = $('<li><a></a></li>');
+                            $("a", li)
+                                .attr('class', 'dropdown-item')
+                                .attr('href', 'javascript:void(0)')
+                                .attr('data-value', connection)
+                                .text(connection + " (" + server.name + ")");
+
+                            serverDropdown.append(li);
+                        });
+                    });
+
+                    if (count > 0) {
+                        serverDropdown.show();
+                    }
+                });
+            });
+            serverInput.focusout(function () {
+                $('#serverDropdown').delay(300).hide(0);
+            });
+
+
+            let deleteAccountModal = $('#deleteAccountModal');
+            if (deleteAccountModal !== undefined) {
+                deleteAccountModal.on('show.bs.modal', function (event) {
+                    $('#confirmAccountDeleteButton').attr('disabled', true);
+                    $('#confirmAccountDeleteInput').val('');
+                });
+
+                $('#confirmAccountDeleteInput').bind('input', function (event) {
+                    const val = $('#confirmAccountDeleteText').val();
+                    $('#confirmAccountDeleteButton').attr('disabled', $(this).val() !== val);
+                });
+            }
+
+
+            let button = $('#copyWebhookButton');
+
+            // Initialize the tooltip.
+            button.tooltip();
+
+            // When the copy button is clicked, select the value of the text box, attempt
+            // to execute the copy command, and trigger event to update tooltip message
+            // to indicate whether the text was successfully copied.
+            button.bind('click', function () {
+                let input = document.querySelector('#copyWebhookInput');
+                input.select();
+                input.setSelectionRange(0, input.value.length + 1);
+
+                let button = $('#copyWebhookButton');
+                try {
+                    let success = document.execCommand('copy');
+                    if (success) {
+                        button.trigger('copied', ['Copied!']);
+                    } else {
+                        button.trigger('copied', ['Copy with Ctrl-C']);
+                    }
+                } catch (err) {
+                    button.trigger('copied', ['Copy with Ctrl-C']);
+                }
+            });
+
+            // Handler for updating the tooltip message.
+            button.bind('copied', function (event, message) {
+                $(this).attr('title', message)
+                    .tooltip('_fixTitle')
+                    .tooltip('show')
+                    .attr('title', "Copy to Clipboard")
+                    .tooltip('_fixTitle');
+            });
+        });
+    </script>
+{% endblock %}

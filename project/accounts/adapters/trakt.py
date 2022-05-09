@@ -1,0 +1,208 @@
+from datetime import timezone, datetime, timedelta
+from typing import List, Optional, Any, Union
+
+from trakt import Trakt
+from trakt.objects import Movie as TraktMovie, Episode as TraktEpisode, Show as TraktShow
+
+from api.models import Media, Movie, Show, Episode, Season
+from . import Adapter
+
+
+class TraktAdapter(Adapter):
+    @staticmethod
+    def find_media(ids: dict[str, str], media: str) -> Optional[Union[TraktMovie, TraktShow]]:
+        for key, value in ids.items():
+            items = Trakt['search'].lookup(value, service=key, media=media, per_page=10, exceptions=False)
+            if items and len(items) > 0:
+                return items[0]
+
+        return None
+
+    @staticmethod
+    def find_media_id(media: Union[Movie, Show]) -> Optional[str]:
+        media_key = media.ids.get('imdb')
+        if media_key:
+            return media_key
+
+        if media.type == Movie.TYPE:
+            trakt_movie = TraktAdapter.find_media(media.ids, 'movie')
+            _, movie_key = trakt_movie.pk if trakt_movie else None
+            return movie_key
+
+        if media.type == Show.TYPE:
+            trakt_show = TraktAdapter.find_media(media.ids, 'show')
+            _, show_key = trakt_show.pk if trakt_show else None
+            return show_key
+
+        return None
+
+    def __init__(self, trakt_account):
+        self.trakt_account = trakt_account
+
+    def fetch(self, min_date: datetime = None, items_limit: int = 1000) -> Optional[List[Media]]:
+        trakt_auth = self.trakt_account.auth
+        authentication = Trakt.configuration.defaults.oauth.from_response(
+            response=trakt_auth.to_response(),
+            refresh=True,
+            username=self.trakt_account.uuid,
+        )
+
+        result = list()
+        shows = dict()
+
+        with authentication:
+            history = list(Trakt['sync/history'].get(
+                start_at=min_date,
+                per_page=items_limit,
+                exceptions=True,
+            ))
+
+            for history_item in history:
+                watched_at = history_item.watched_at.astimezone(timezone.utc)
+
+                if isinstance(history_item, TraktMovie):
+                    movie = Movie(
+                        ids=dict(history_item.keys),
+                        title=history_item.title,
+                        year=history_item.year,
+                        watched_at=watched_at,
+                    )
+
+                    result.append(movie)
+                    continue
+
+                if isinstance(history_item, TraktEpisode):
+                    season_number, episode_number = history_item.pk
+                    item_show = history_item.show
+
+                    _, show_key = item_show.pk
+                    if show_key in shows:
+                        show = shows[show_key]
+                    else:
+                        show = Show(
+                            ids=dict(item_show.keys),
+                            title=item_show.title,
+                            year=item_show.year,
+                        )
+
+                        shows[show_key] = show
+                        result.append(show)
+
+                    season = next((x for x in show.seasons if x.number == season_number), None)
+                    if not season:
+                        season = Season(
+                            number=season_number,
+                        )
+
+                        show.seasons.append(season)
+
+                    episode = Episode(
+                        ids=dict([(key, value) for (key, value) in history_item.keys[1:]]),
+                        title=history_item.title,
+                        number=episode_number,
+                        watched_at=watched_at,
+                    )
+
+                    season.episodes.append(episode)
+                    continue
+
+        return result
+
+    def push(self, items: List[Media]) -> Optional[Any]:
+        trakt_auth = self.trakt_account.auth
+        authentication = Trakt.configuration.defaults.oauth.from_response(
+            response=trakt_auth.to_response(),
+            refresh=True,
+            username=self.trakt_account.uuid,
+        )
+
+        with authentication:
+            watch_troubleshoot = timedelta(minutes=30)
+
+            movies = list()
+            shows = list()
+
+            for item in items:
+                if isinstance(item, Movie):
+                    movie_key = TraktAdapter.find_media_id(item)
+                    if movie_key:
+                        start_at = item.watched_at - watch_troubleshoot
+                        end_at = item.watched_at + watch_troubleshoot
+
+                        history = Trakt['sync/history'].movies(
+                            id=movie_key,
+                            start_at=start_at,
+                            end_at=end_at,
+                            exceptions=False,
+                        )
+
+                        if history and next(history, None) is not None:
+                            continue
+
+                    movies.append({
+                        'ids': item.ids,
+                        'title': item.title,
+                        'year': item.year,
+                        'watched_at': item.watched_at.isoformat(),
+                    })
+
+                    continue
+
+                if isinstance(item, Show):
+                    show_key = TraktAdapter.find_media_id(item)
+
+                    seasons = list()
+                    for season in item.seasons:
+                        episodes = list()
+                        for episode in season.episodes:
+                            if show_key:
+                                start_at = episode.watched_at - watch_troubleshoot
+                                end_at = episode.watched_at + watch_troubleshoot
+
+                                history = Trakt['sync/history'].episodes(
+                                    id=show_key,
+                                    start_at=start_at,
+                                    end_at=end_at,
+                                    exceptions=False,
+                                )
+
+                                if history:
+                                    trakt_episode = next(
+                                        (x for x in history
+                                         if x.pk[0] == season.number and x.pk[1] == episode.number),
+                                        None)
+                                    if trakt_episode:
+                                        continue
+
+                            episodes.append({
+                                'number': episode.number,
+                                'watched_at': episode.watched_at.isoformat(),
+                            })
+
+                        if len(episodes) > 0:
+                            seasons.append({
+                                'number': season.number,
+                                'episodes': episodes,
+                            })
+
+                    if len(seasons) > 0:
+                        shows.append({
+                            'ids': item.ids,
+                            'title': item.title,
+                            'year': item.year,
+                            'seasons': seasons,
+                        })
+
+                    continue
+
+            if len(movies) <= 0 and len(shows) <= 0:
+                return {
+                    'message': 'Up-to-date',
+                }
+
+            items = {
+                'movies': movies,
+                'shows': shows,
+            }
+
+            return Trakt['sync/history'].add(items, exceptions=True)

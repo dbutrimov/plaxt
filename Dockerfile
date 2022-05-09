@@ -1,18 +1,38 @@
-FROM python:3.9-alpine
+FROM lsiobase/alpine:3.15
 
-ENV PYTHONUNBUFFERED 1
+# environment variables
+ENV PYTHONUNBUFFERED=1
+#ENV DJANGO_SETTINGS_MODULE=plaxt.settings
 
-RUN mkdir /plaxt
+# install packages
+RUN \
+    echo "**** install packages ****" && \
+    apk add --no-cache \
+        python3 \
+        py3-pip
 
-WORKDIR /plaxt
+# setup working directory
+#RUN mkdir /app
+WORKDIR /app
 
-COPY requirements.txt /plaxt/
-RUN pip install --no-cache-dir -U pip && \
+# add project files
+ADD project/ /app/
+
+# install python modules
+RUN \
+    echo "**** install python modules ****" && \
+    pip install --no-cache-dir -U pip && \
     pip install --no-cache-dir -r requirements.txt
-COPY . /plaxt/
 
-RUN chmod +x entrypoint.sh
+# cleanup
+RUN \
+    echo "**** cleanup ****" && \
+    rm -rf \
+        /tmp/*
 
-ENTRYPOINT ["/plaxt/entrypoint.sh"]
+# add local files
+ADD root/ /
 
+# ports and volumes
+EXPOSE 8000/tcp
 VOLUME /config
