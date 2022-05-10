@@ -77,28 +77,30 @@
     {{ block.super }}
 
     <script>
-        function updateSyncStatus() {
-            $.getJSON("{% url 'sync_status' %}")
+        function updateSyncState() {
+            $.getJSON("{% url 'sync_state' %}")
                 .done((res) => {
-                    const taskStatus = res.status;
-                    if (taskStatus === 'PENDING') {
-                        $('#syncStatus').removeClass('visually-hidden');
-                        $('#lastSyncTime').addClass('visually-hidden');
+                    const is_busy = res.is_busy;
+                    if (is_busy) {
+                        $('#syncState').removeClass('visually-hidden');
+                        $('#lastSyncAt').addClass('visually-hidden');
                     } else {
-                        $('#syncStatus').addClass('visually-hidden');
-                        $('#lastSyncTime').removeClass('visually-hidden');
+                        $('#syncState').addClass('visually-hidden');
+                        $('#lastSyncAt').removeClass('visually-hidden');
                     }
 
-                    let doneAt = res.done_at;
-                    if (doneAt) {
-                        $('#lastSyncTimeText').html(moment(new Date(doneAt)).format('lll'));
+                    let lastSyncAt = res.last_sync_at;
+                    if (lastSyncAt) {
+                        $('#lastSyncAtText').html(moment(new Date(lastSyncAt)).format('lll'));
                     }
 
-                    setTimeout(updateSyncStatus, 1000);
+                    setTimeout(updateSyncState, 3000);
                 }).fail((err) => {
                     console.log(err);
-                    $('#syncStatus').addClass('visually-hidden');
-                    $('#lastSyncTime').removeClass('visually-hidden');
+                    $('#syncState').addClass('visually-hidden');
+                    $('#lastSyncAt').removeClass('visually-hidden');
+
+                    setTimeout(updateSyncState, 5000);
                 });
         }
 
@@ -160,8 +162,8 @@
         }
 
         function syncNow() {
-            $('#syncStatus').removeClass('visually-hidden');
-            $('#lastSyncTime').addClass('visually-hidden');
+            $('#syncState').removeClass('visually-hidden');
+            $('#lastSyncAt').addClass('visually-hidden');
 
             const csrftoken = getCookie('csrftoken');
             $.ajax({
@@ -178,7 +180,7 @@
         }
 
         $(document).ready(function () {
-            updateSyncStatus();
+            updateSyncState();
 
             $('#linkUsernameInput').bind('input', function (event) {
                 $(this).removeClass('is-invalid');

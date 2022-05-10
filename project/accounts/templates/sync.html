@@ -15,15 +15,15 @@
 
         {% with plex_server=plex_account.server %}
             {% if plex_server %}
-                <div id="syncStatus" class="text-secondary visually-hidden">
+                <div id="syncState" class="text-secondary visually-hidden">
                     <small>
                         <span class="spinner-grow spinner-grow-sm me-1" role="status" aria-hidden="true"></span>
                         <span>Syncing...</span>
                     </small>
                 </div>
-                <div id="lastSyncTime" class="text-secondary">
+                <div id="lastSyncAt" class="text-secondary">
                     <small>
-                        Last sync at: <i><span id="lastSyncTimeText">{{ plex_server.sync_at|default:"never" }}</span></i>
+                        Last sync at: <i><span id="lastSyncAtText">{{ plex_server.last_sync_at|default:"never" }}</span></i>
                         <a class="ms-1" href="#sync" onclick="syncNow();">Sync now</a>
                     </small>
                 </div>

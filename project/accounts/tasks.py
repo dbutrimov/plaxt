@@ -1,9 +1,8 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from celery import shared_task
+from celery import shared_task, states
 from celery.result import AsyncResult
-from celery.states import state
 from celery.utils.log import get_task_logger
 from django.contrib.auth.models import User
 from django.db.models import Q
@@ -114,14 +113,14 @@ def sync():
         task_id = server.last_task_id
         if task_id:
             task_result = AsyncResult(task_id)
-            if state(task_result.status) < state(None):
+            if task_result.state not in states.READY_STATES:
                 continue
 
         plex_account = PlexAccount.objects.get(server_id=server.id)
         uid = plex_account.user.id
 
-        result = sync_account_by_id.delay(uid)
-        server.last_task_id = result.task_id
+        task_result = sync_account_by_id.delay(uid)
+        server.last_task_id = task_result.task_id
         server.save()
 
         uids.append(uid)
