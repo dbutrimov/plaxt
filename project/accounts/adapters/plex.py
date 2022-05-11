@@ -8,7 +8,7 @@ from plexapi.server import PlexServer
 from plexapi.video import Movie as PlexMovie, Episode as PlexEpisode, Show as PlexShow
 
 from api.models import Media, Movie, Show, Episode, Season
-from common import utils
+from common.utils import parse_media_guid
 from . import Adapter
 
 logger = logging.getLogger(__name__)
@@ -17,13 +17,13 @@ logger = logging.getLogger(__name__)
 class PlexAdapter(Adapter):
     @staticmethod
     def parse_ids(media: Union[PlexMovie, PlexShow, PlexEpisode]) -> dict[str, str]:
-        result = None  # utils.parse_ids(media.guid)
+        result = None
         for guid in media.guids:
-            ids = utils.parse_ids(guid.id)
+            service, media_id = parse_media_guid(guid.id)
             if result:
-                result.update(ids)
+                result.update({service: media_id})
             else:
-                result = ids
+                result = {service: media_id}
 
         return result
 

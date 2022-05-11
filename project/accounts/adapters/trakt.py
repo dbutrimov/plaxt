@@ -1,41 +1,15 @@
 from datetime import timezone, datetime, timedelta
-from typing import List, Optional, Any, Union
+from typing import List, Optional, Any
 
 from trakt import Trakt
-from trakt.objects import Movie as TraktMovie, Episode as TraktEpisode, Show as TraktShow
+from trakt.objects import Movie as TraktMovie, Episode as TraktEpisode
 
 from api.models import Media, Movie, Show, Episode, Season
+from common.utils import find_trakt_media_id
 from . import Adapter
 
 
 class TraktAdapter(Adapter):
-    @staticmethod
-    def find_media(ids: dict[str, str], media: str) -> Optional[Union[TraktMovie, TraktShow]]:
-        for key, value in ids.items():
-            items = Trakt['search'].lookup(value, service=key, media=media, per_page=10, exceptions=False)
-            if items and len(items) > 0:
-                return items[0]
-
-        return None
-
-    @staticmethod
-    def find_media_id(media: Union[Movie, Show]) -> Optional[str]:
-        media_key = media.ids.get('imdb')
-        if media_key:
-            return media_key
-
-        if media.type == Movie.TYPE:
-            trakt_movie = TraktAdapter.find_media(media.ids, 'movie')
-            _, movie_key = trakt_movie.pk if trakt_movie else None
-            return movie_key
-
-        if media.type == Show.TYPE:
-            trakt_show = TraktAdapter.find_media(media.ids, 'show')
-            _, show_key = trakt_show.pk if trakt_show else None
-            return show_key
-
-        return None
-
     def __init__(self, trakt_account):
         self.trakt_account = trakt_account
 
@@ -124,7 +98,7 @@ class TraktAdapter(Adapter):
 
             for item in items:
                 if isinstance(item, Movie):
-                    movie_key = TraktAdapter.find_media_id(item)
+                    movie_key = find_trakt_media_id(item.ids, 'movie')
                     if movie_key:
                         start_at = item.watched_at - watch_troubleshoot
                         end_at = item.watched_at + watch_troubleshoot
@@ -149,7 +123,7 @@ class TraktAdapter(Adapter):
                     continue
 
                 if isinstance(item, Show):
-                    show_key = TraktAdapter.find_media_id(item)
+                    show_key = find_trakt_media_id(item.ids, 'show')
 
                     seasons = list()
                     for season in item.seasons:
