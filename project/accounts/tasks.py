@@ -106,7 +106,7 @@ def sync():
     min_date = datetime.now(tz=timezone.utc).replace(microsecond=0) - timedelta(hours=3)
     servers = PlexServer.objects.filter(
         Q(connection__isnull=False) & (Q(last_sync_at__isnull=True) | Q(last_sync_at__lt=min_date))
-    ).order_by('last_sync_at')
+    ).order_by('last_sync_at')[:10]
 
     uids = list()
     for server in servers:
