@@ -15,8 +15,8 @@ RUN \
 #RUN mkdir /app
 WORKDIR /app
 
-# add project files
-ADD project/ /app/
+# add app files
+ADD plaxt/ /app/
 
 # install python modules
 RUN \
