@@ -1,0 +1,37 @@
+<form hx-post="{{ request.path }}" hx-headers='{"X-CSRFToken":"{{ csrf_token }}"}' class="modal-content">
+    <div class="modal-header">
+        <h5 class="modal-title">Are you absolutely sure?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body bg-warning">
+        Unexpected bad things will happen if you don’t read this!
+    </div>
+
+    <div class="modal-body">
+        <p>This action <b>cannot</b> be undone. This will permanently delete the <b>{{ user.username }}</b>
+            account.
+        </p>
+        <p>Please type <b>{{ user.username }}</b> to confirm.</p>
+        <input id="confirmInput" type="text" class="form-control"/>
+    </div>
+
+    <div class="modal-footer">
+        <button id="submitButton" type="submit" class="btn btn-danger" disabled>
+            Delete this account
+        </button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+    </div>
+
+    <script>
+        var input = $('#confirmInput');
+        var button = $('#submitButton');
+
+        input.val('');
+        button.attr('disabled', true);
+
+        input.bind('input', function () {
+            button.attr('disabled', $(this).val() !== "{{ user.username }}");
+        });
+    </script>
+</form>

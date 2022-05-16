@@ -1,35 +1,50 @@
 {% with plex_account=user.plexaccount %}
     {% if plex_account %}
-        {% csrf_token %}
-        <div class="input-group input-group-sm mb-1">
-            <input id="serverInput" type="text" class="form-control" autocomplete="off"
-                   placeholder="http://myplexserver:32400"
-                   value="{{ plex_account.server.connection|default:"" }}">
-            <ul id="serverDropdown" class="dropdown-menu dropdown-menu-start"></ul>
-            <button id="saveServerButton" class="btn btn-outline-secondary" type="button" onclick="saveServer();">
-                <span id="saveServerSpinner" class="spinner-border spinner-border-sm visually-hidden"
-                      role="status" aria-hidden="true"></span>
-                <span id="saveServerText">Save</span>
-            </button>
-        </div>
-
         {% with plex_server=plex_account.server %}
             {% if plex_server %}
-                <div id="syncState" class="text-secondary visually-hidden">
-                    <small>
-                        <span class="spinner-grow spinner-grow-sm me-1" role="status" aria-hidden="true"></span>
-                        <span>Syncing...</span>
-                    </small>
+                <h6>Plex Media Server</h6>
+                <div class="row g-3 mb-3 align-items-center">
+                    <div class="col-md-auto">
+                        <i class="bi bi-ethernet me-1"></i>
+                        <a href="{{ plex_server.connection }}" target="_blank">
+                            {{ plex_server.connection }}
+                        </a>
+                    </div>
+
+                    <div class="col-md-auto">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-auto">
+                                <button class="btn btn-sm btn-outline-primary"
+                                        hx-get="{% url 'server_form' %}"
+                                        hx-target="#dialog">
+                                    Update
+                                </button>
+                            </div>
+                            <div class="col-md-auto">
+                                <button class="btn btn-sm btn-outline-danger"
+                                        hx-post="{% url 'confirm' %}"
+                                        hx-vals='{"method":"delete","path":"{% url 'sync' %}","title":"Disable Plex Sync","message":"Are you sure you want to disable Plex Sync?","accept":"Disable","decline":"Close"}'
+                                        hx-headers='{"X-CSRFToken":"{{ csrf_token }}"}'
+                                        hx-target="#dialog">
+                                    Disable
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div id="lastSyncAt" class="text-secondary">
-                    <small>
-                        Last sync at: <i><span id="lastSyncAtText">{{ plex_server.last_sync_at|default:"never" }}</span></i>
-                        <a class="ms-1" href="#sync" onclick="syncNow();">Sync now</a>
-                    </small>
-                </div>
+
+                <div hx-get="{% url 'sync_form' %}" hx-trigger="load, every 3s" hx-target="this"></div>
+            {% else %}
+                <button class="btn btn-primary"
+                        hx-get="{% url 'server_form' %}"
+                        hx-target="#dialog">
+                    Enable
+                </button>
             {% endif %}
         {% endwith %}
     {% else %}
-        First, link your Plex account.
+        <div class="alert alert-warning" role="alert">
+            <i class="bi bi-exclamation-square me-1"></i> First, link your Plex account.
+        </div>
     {% endif %}
 {% endwith %}
