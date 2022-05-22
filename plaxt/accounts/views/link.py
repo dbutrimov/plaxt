@@ -1,55 +1,41 @@
-from django.core.exceptions import ValidationError
-from django.shortcuts import redirect, render
+from django.http import HttpResponse
+from django.shortcuts import render
 from django.views import View
-from plexapi.myplex import MyPlexAccount
 
-from accounts.forms import LinkForm
+from accounts.utils import hx_redirect
 from common.models import PlexAccount
 from plaxt import settings
 
 
 class LinkView(View):
-    http_method_names = ['post']
+    http_method_names = ['get', 'delete']
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return redirect(settings.LOGIN_URL)
+            return hx_redirect(settings.LOGIN_URL)
 
         return super().dispatch(request, *args, **kwargs)
 
-    def post(self, request):
+    def get(self, request):
+        return render(request, 'link.html')
+
+    def delete(self, request):
         user = request.user
 
-        form = LinkForm(request.POST)
-        if not form.is_valid():
-            context = {
-                'link_form': form,
-            }
-
-            return render(request, 'index.html', context)
-
-        username = form.cleaned_data['username']
-        password = form.cleaned_data['password']
-
         try:
-            plex = MyPlexAccount(username, password)
-            plex_token = plex.authenticationToken
-        except Exception:
-            form.add_error(None, ValidationError("Authorization failed!"))
+            plex_account = user.plexaccount
+        except PlexAccount.DoesNotExist:
+            plex_account = None
 
-            context = {
-                'link_form': form,
-            }
+        if plex_account:
+            user.plexaccount = None
+            user.save()
+            plex_account.delete()
 
-            return render(request, 'index.html', context)
+        if request.headers.get('X-ConfirmDialog'):
+            return HttpResponse(status=204, headers={'HX-Trigger': 'linkChanged'})
 
-        plex_account = PlexAccount(
-            uuid=plex.uuid,
-            username=plex.username,
-            token=plex_token,
-            user=user,
-        )
+        response = render(request, 'link.html')
+        response.headers['HX-Trigger'] = 'linkChanged'
 
-        plex_account.save()
-
-        return redirect('index')
+        return response

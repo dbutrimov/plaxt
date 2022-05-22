@@ -7,7 +7,7 @@ from common import utils
 
 
 class LoginView(TemplateView):
-    template_name = "login.html"
+    template_name = 'login.html'
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:

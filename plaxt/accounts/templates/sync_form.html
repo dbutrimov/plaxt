@@ -1,0 +1,14 @@
+<form hx-post="{{ request.path }}" hx-headers='{"X-CSRFToken":"{{ csrf_token }}"}'>
+    <div class="text-secondary mb-2">
+        <small>Last sync at: <i>{{ last_sync_at|default:"never" }}</i></small>
+    </div>
+
+    <button type="submit" class="btn btn-outline-primary" {% if is_busy %}disabled{% endif %}>
+        {% if is_busy %}
+            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+            Syncing...
+        {% else %}
+            Sync now
+        {% endif %}
+    </button>
+</form>

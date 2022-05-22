@@ -1,0 +1,12 @@
+{% if servers and servers|length > 0 %}
+    {% for server in servers %}
+        <li><h6 class="dropdown-header">{{ server.name }}</h6></li>
+        {% for connection in server.connections %}
+            <li>
+                <a class="dropdown-item" data-value="{{ connection }}" href="javascript:void(0)">
+                    {{ connection }}
+                </a>
+            </li>
+        {% endfor %}
+    {% endfor %}
+{% endif %}
