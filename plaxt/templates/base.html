@@ -13,62 +13,64 @@
 </head>
 
 <body>
-<nav class="navbar fixed-top navbar-dark bg-dark">
-    <div class="container">
-        <a class="navbar-brand" href="{% url 'index' %}">
-            <img src="{% static 'images/plex.svg' %}" alt=""
-                 width="30" height="30" class="d-inline-block align-top">
-            <span class="text-uppercase">{{ app_name }}</span>
-        </a>
+<div class="d-flex flex-column min-vh-100">
+    <nav class="navbar fixed-top navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'index' %}">
+                <img src="{% static 'images/plex.svg' %}" alt=""
+                     width="30" height="30" class="d-inline-block align-top">
+                <span class="text-uppercase">{{ app_name }}</span>
+            </a>
 
-        {% if user.is_authenticated %}
-            <form method="post" action="{% url 'logout' %}">
+            {% if user.is_authenticated %}
+                <form method="post" action="{% url 'logout' %}">
                 <span class="navbar-text me-3">Hello, <a href="https://trakt.tv/users/{{ user.username }}"
                                                          target="_blank"
                                                          rel="noopener noreferrer">{{ user.username }}</a>!</span>
-                {% csrf_token %}
-                <button class="btn btn-sm btn-outline-light" type="submit">Logout</button>
-            </form>
-        {% else %}
-            {#            <button class="btn btn-primary" type="button" onclick="location.href='{% url 'login' %}';">Login</button>#}
-        {% endif %}
-    </div>
-</nav>
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-light" type="submit">Logout</button>
+                </form>
+            {% else %}
+                {#            <button class="btn btn-primary" type="button" onclick="location.href='{% url 'login' %}';">Login</button>#}
+            {% endif %}
+        </div>
+    </nav>
 
-<div class="container py-5">
-    {% block page_content %}{% endblock %}
+    <main class="container py-5 flex-fill">
+        {% block page_content %}{% endblock %}
+    </main>
+
+    <footer class="footer py-5 bg-light">
+        <div class="container text-secondary">
+            <div class="mb-3">
+                <img src="{% static 'images/plex.svg' %}" alt=""
+                     width="24" height="24" class="d-inline-block align-top me-1">
+                {{ app_name }} v{{ app_version }}
+            </div>
+            <div class="mb-3">
+                Powered by
+                <a class="link-secondary" href="https://djangoproject.com/" target="_blank">Django</a>
+                v{{ django_version }},
+                <a class="link-secondary" href="https://jquery.com/" target="_blank">jQuery</a>
+                v<span id="jqueryVersionText"></span> and
+                <a class="link-secondary" href="https://getbootstrap.com/" target="_blank">Bootstrap</a>
+                v<span id="bootstrapVersionText"></span>
+            </div>
+            <div>
+                Developed by
+                <a class="link-secondary" href="{{ app_developer_link }}" target="_blank">{{ app_developer }}</a>
+            </div>
+            <div class="mb-3">
+                Code licensed
+                <a class="link-secondary" href="{{ app_license_link }}" target="_blank">{{ app_license }}</a>
+            </div>
+            <div>
+                <i class="bi bi-github me-1"></i>
+                <a class="link-secondary" href="{{ app_repo }}" target="_blank">Source Code</a>
+            </div>
+        </div>
+    </footer>
 </div>
-
-<footer class="footer py-5 bg-light">
-    <div class="container text-secondary">
-        <div class="mb-3">
-            <img src="{% static 'images/plex.svg' %}" alt=""
-                 width="24" height="24" class="d-inline-block align-top me-1">
-            {{ app_name }} v{{ app_version }}
-        </div>
-        <div class="mb-3">
-            Powered by
-            <a class="link-secondary" href="https://djangoproject.com/" target="_blank">Django</a>
-            v{{ django_version }},
-            <a class="link-secondary" href="https://jquery.com/" target="_blank">jQuery</a>
-            v<span id="jqueryVersionText"></span> and
-            <a class="link-secondary" href="https://getbootstrap.com/" target="_blank">Bootstrap</a>
-            v<span id="bootstrapVersionText"></span>
-        </div>
-        <div>
-            Developed by
-            <a class="link-secondary" href="{{ app_developer_link }}" target="_blank">{{ app_developer }}</a>
-        </div>
-        <div class="mb-3">
-            Code licensed
-            <a class="link-secondary" href="{{ app_license_link }}" target="_blank">{{ app_license }}</a>
-        </div>
-        <div>
-            <i class="bi bi-github me-1"></i>
-            <a class="link-secondary" href="{{ app_repo }}" target="_blank">Source Code</a>
-        </div>
-    </div>
-</footer>
 
 <script src="{% static 'jquery/jquery.min.js' %}"></script>
 <script src="{% static 'bootstrap/js/bootstrap.bundle.min.js' %}"></script>
