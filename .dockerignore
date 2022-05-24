@@ -1,0 +1,15 @@
+.git
+.gitignore
+.dockerignore
+Dockerfile
+README.md
+
+project/.idea/
+project/node_modules/
+project/.gitignore
+project/.env
+project/.env.example
+project/.python-version
+project/gulpfile.js
+project/package-lock.json
+project/package.json

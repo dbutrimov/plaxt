@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block page_content %}
+    {% if user.is_authenticated %}
+        <div class="m-5">
+            <h3 class="mb-5">What is next?</h3>
+
+            <div id="scrobble" class="container mb-5">
+                <h5 class="mb-3">
+                    <span class="badge bg-secondary me-1">Tip #1</span>
+                    How to enable the Plex Scrobbler.
+                </h5>
+                <div class="container">
+                    {% include 'webhook.html' %}
+                </div>
+            </div>
+
+            <div id="link" class="container mb-5">
+                <h5 class="mb-3">
+                    <span class="badge bg-secondary me-1">Tip #2</span>
+                    Link your Plex account.
+                </h5>
+                <div class="container text-secondary mb-4">
+                    <div class="row g-2">
+                        <div class="col-md-auto"><i class="bi bi-info-square"></i></div>
+                        <div class="col-md">
+                            Link your Plex account to scrobble with it. This is also required to enable Plex Sync.
+                        </div>
+                    </div>
+                </div>
+                <div class="container"
+                     hx-trigger="load, linkChanged from:body"
+                     hx-get="{% url 'link' %}"
+                     hx-target="this">
+                </div>
+            </div>
+
+            <div id="sync" class="container mb-5">
+                <h5 class="mb-3">
+                    <span class="badge bg-secondary me-1">Tip #3</span>
+                    Enable Plex Sync.
+                </h5>
+                <div class="container text-secondary mb-4">
+                    <div class="row g-2">
+                        <div class="col-md-auto"><i class="bi bi-info-square"></i></div>
+                        <div class="col-md">
+                            Enable Plex Sync to keep your watch history up-to-date.
+                            Plex Sync periodically runs the background task to sync your watch history between the Plex Media Server
+                            and your Trakt account.
+                        </div>
+                    </div>
+                </div>
+                <div class="container"
+                     hx-trigger="load, linkChanged from:body, syncChanged from:body, serverChanged from:body"
+                     hx-get="{% url 'sync' %}"
+                     hx-target="this">
+                </div>
+            </div>
+
+            <div class="container mb-5">
+                <h5 class="text-danger mb-3">
+                    <i class="bi bi-exclamation-octagon-fill me-1"></i>
+                    Danger Zone!
+                </h5>
+                <div class="container mb-3">
+                    Once you delete an account, there is no going back. Please be certain.
+                </div>
+                <div class="container">
+                    <button type="button" class="btn btn-danger"
+                            hx-get="{% url 'delete' %}" hx-target="#dialog">
+                        Delete account
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="modal" class="modal fade">
+            <div id="dialog" class="modal-dialog" hx-target="this"></div>
+        </div>
+    {% endif %}
+{% endblock %}
+
+{% block javascript %}
+    {{ block.super }}
+
+    <script>
+        $(document).ready(function () {
+            let button = $('#copyWebhookButton');
+
+            // Initialize the tooltip.
+            button.tooltip();
+
+            // When the copy button is clicked, select the value of the text box, attempt
+            // to execute the copy command, and trigger event to update tooltip message
+            // to indicate whether the text was successfully copied.
+            button.bind('click', function () {
+                let input = document.querySelector('#copyWebhookInput');
+                input.select();
+                input.setSelectionRange(0, input.value.length + 1);
+
+                let button = $('#copyWebhookButton');
+                try {
+                    let success = document.execCommand('copy');
+                    if (success) {
+                        button.trigger('copied', ['Copied!']);
+                    } else {
+                        button.trigger('copied', ['Copy with Ctrl-C']);
+                    }
+                } catch (err) {
+                    button.trigger('copied', ['Copy with Ctrl-C']);
+                }
+            });
+
+            // Handler for updating the tooltip message.
+            button.bind('copied', function (event, message) {
+                $(this).attr('title', message)
+                    .tooltip('_fixTitle')
+                    .tooltip('show')
+                    .attr('title', "Copy to Clipboard")
+                    .tooltip('_fixTitle');
+            });
+        });
+    </script>
+{% endblock %}

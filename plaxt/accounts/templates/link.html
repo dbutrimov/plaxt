@@ -1,0 +1,25 @@
+{% with plex_account=user.plexaccount %}
+    {% if plex_account %}
+        <div class="row g-3 mb-3 align-items-center">
+            <div class="col-md-auto">
+                <i class="bi bi-person-square me-1"></i>
+                {{ plex_account.username }}
+            </div>
+            <div class="col-md-auto">
+                <button class="btn btn-sm btn-outline-danger"
+                        hx-post="{% url 'confirm' %}"
+                        hx-vals='{"method":"delete","path":"{% url 'link' %}","title":"Unlink your Plex account","message":"Are you sure you want to unlink your Plex account?","accept":"Unlink","decline":"Close"}'
+                        hx-headers='{"X-CSRFToken":"{{ csrf_token }}"}'
+                        hx-target="#dialog">
+                    Unlink
+                </button>
+            </div>
+        </div>
+    {% else %}
+        <button class="btn btn-primary"
+                hx-get="{% url 'link_form' %}"
+                hx-target="#dialog">
+            Link Plex account
+        </button>
+    {% endif %}
+{% endwith %}

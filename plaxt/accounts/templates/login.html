@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_title %}Authorization{% endblock %}
+
+{% block page_content %}
+    <div class="container col-12 col-md-8 col-lg-6 col-xl-5 py-5">
+        <div class="card text-center shadow-sm" style="border-radius: 1rem;">
+            <div class="card-body p-5">
+                <img src="{% static 'images/trakt.svg' %}" alt="" width="90" height="90">
+
+                <div class="mt-4 mb-5">
+                    <h5 class="card-title">Sign in via Trakt</h5>
+                    <p class="card-text text-secondary">
+                        and keep your watch history up-to-date!
+                    </p>
+                </div>
+
+                <form action="{{ action }}" method="get">
+                    <input type="hidden" name="client_id" value="{{ client_id }}">
+                    <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}">
+                    <input type="hidden" name="response_type" value="{{ response_type }}">
+                    <input type="hidden" name="state" value="{{ state }}">
+                    <button class="btn btn-primary w-50" type="submit">Login</button>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endblock %}
