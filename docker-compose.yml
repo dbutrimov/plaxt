@@ -5,7 +5,7 @@ services:
     image: rabbitmq:latest
 
   plaxt:
-    image: dbutrimov/plaxt:beta
+    image: dbutrimov/plaxt:latest
     environment:
       - ENV_PATH=/config/.env
     volumes:
