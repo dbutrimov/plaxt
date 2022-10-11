@@ -150,8 +150,8 @@ class PlexAdapter(Adapter):
                     not_found.append(item.to_dict())
                     continue
 
-                if not plex_movie.isWatched:
-                    plex_movie.markWatched()
+                if not plex_movie.isPlayed:
+                    plex_movie.markPlayed()
                     added_movies += 1
 
                 continue
@@ -172,8 +172,8 @@ class PlexAdapter(Adapter):
                             not_found_episodes.append(episode)
                             continue
 
-                        if not plex_episode.isWatched:
-                            plex_episode.markWatched()
+                        if not plex_episode.isPlayed:
+                            plex_episode.markPlayed()
                             added_episodes += 1
 
                     if len(not_found_episodes) > 0:
