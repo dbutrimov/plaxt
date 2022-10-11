@@ -52,6 +52,9 @@ def find_trakt_media(ids: dict[str, str], media: str) -> Optional[Media]:
 
 
 def find_trakt_media_id(ids: dict[str, str], media: str) -> Optional[str]:
+    if not ids:
+        return None
+
     media_id = ids.get('imdb')
     if media_id:
         return media_id
