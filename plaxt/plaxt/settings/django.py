@@ -13,6 +13,9 @@ DEBUG = ENV.bool('DEBUG', default=False)
 
 ALLOWED_HOSTS = ENV.list('ALLOWED_HOSTS', default=[])
 
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 # Application definition
 
 INSTALLED_APPS = ['whitenoise.runserver_nostatic'] if DEBUG else []
